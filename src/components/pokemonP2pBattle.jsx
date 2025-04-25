@@ -1,33 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FaArrowLeft, FaLink, FaQrcode, FaCopy } from 'react-icons/fa';
-import { GiSwordWound } from 'react-icons/gi';
+import { FaArrowLeft, FaLink, FaQrcode, FaCopy, FaSearch, FaTimes } from 'react-icons/fa';
+import { GiBroadsword } from "react-icons/gi";
 import { QRCodeSVG } from 'qrcode.react';
-import Peer from 'simple-peer';
+import Pokeball from "../assets/images/pokeballs.svg";
 import { v4 as uuidv4 } from 'uuid';
-import '../assets/css/page/pokemonP2pBattle.css';
+import io from 'socket.io-client';
+
+
+import "../assets/css/page/pokemonP2PBattle.css";
 import Navbar from './navbar';
 
-const MAX_POKEMON = 898; // Up to Gen 8
+const SOCKET_SERVER_URL = 'http://192.168.1.133:3001';
 
 const PokemonP2PBattle = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
+  const MAX_POKEMON = 1000;
+  const POKEMONS_PER_PAGE = 30;
 
   // Battle state
   const [selectedPokemon, setSelectedPokemon] = useState(null);
   const [enemyPokemon, setEnemyPokemon] = useState(null);
-  const [battleLog, setBattleLog] = useState([]);
-  const [battleStatus, setBattleStatus] = useState('connecting');
-  const [currentTurn, setCurrentTurn] = useState(null);
-  const [playerHP, setPlayerHP] = useState(0);
-  const [enemyHP, setEnemyHP] = useState(0);
-  const [pokemonList, setPokemonList] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  // Multiplayer state
-  const [battleId, setBattleId] = useState('');
+  const [battleResult, setBattleResult] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [isHost, setIsHost] = useState(false);
   const [invitationLink, setInvitationLink] = useState('');
@@ -35,724 +31,885 @@ const PokemonP2PBattle = () => {
   const [remotePokemonSelected, setRemotePokemonSelected] = useState(false);
   const [waitingForOpponent, setWaitingForOpponent] = useState(false);
 
+  // Pokemon list state
+  const [types, setTypes] = useState([]);
+  const [basicOpponents, setBasicOpponents] = useState([]);
+  const [enhancedOpponents, setEnhancedOpponents] = useState(new Map());
+  const [filteredOpponents, setFilteredOpponents] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedType, setSelectedType] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [isLoadingOpponents, setIsLoadingOpponents] = useState(false);
+
   // Refs
-  const peerRef = useRef(null);
-  const battleLogRef = useRef(null);
+  const socketRef = useRef(null);
+  const playerIdRef = useRef(uuidv4());
+  const [battleId, setBattleId] = useState('');
 
-  // Type colors
-  const typeColors = {
-    normal: "#A8A878", fire: "#F08030", water: "#6890F0", electric: "#F8D030",
-    grass: "#78C850", ice: "#98D8D8", fighting: "#C03028", poison: "#A040A0",
-    ground: "#E0C068", flying: "#A890F0", psychic: "#F85888", bug: "#A8B820",
-    rock: "#B8A038", ghost: "#705898", dragon: "#7038F8", dark: "#705848",
-    steel: "#B8B8D0", fairy: "#EE99AC"
+  // Pokemon classifications
+  const legendaryPokemon = new Set([
+    144, 145, 146, 150, 243, 244, 245, 249, 250, 377, 378, 379, 
+    380, 381, 382, 383, 384, 480, 481, 482, 483, 484, 485, 486, 
+    487, 488, 638, 639, 640, 641, 642, 645, 643, 644, 646, 772, 
+    773, 785, 786, 787, 788, 888, 889, 890
+  ]);
+
+  const mythicalPokemon = new Set([
+    151, 251, 385, 386, 489, 490, 491, 492, 493, 494, 647, 648, 
+    649, 719, 720, 721, 801, 802, 807, 808, 809, 893, 898, 1000
+  ]);
+
+  const ultraBeasts = new Set([
+    793, 794, 795, 796, 797, 798, 799, 803, 804, 805, 806
+  ]);
+
+  const getPokemonClassification = (id) => {
+    if (legendaryPokemon.has(id) && mythicalPokemon.has(id)) return { type: "mythical", label: "Mythical" };
+    if (legendaryPokemon.has(id)) return { type: "legendary", label: "Legendary" };
+    if (mythicalPokemon.has(id)) return { type: "mythical", label: "Mythical" };
+    if (ultraBeasts.has(id)) return { type: "ultra", label: "Ultra Beast" };
+    return { type: "basic", label: "Basic", icon: null };
   };
 
-  // Type effectiveness chart
-  const typeEffectiveness = {
-    normal: { rock: 0.5, ghost: 0, steel: 0.5 },
-    fire: { fire: 0.5, water: 0.5, grass: 2, ice: 2, bug: 2, rock: 0.5, dragon: 0.5, steel: 2 },
-    water: { fire: 2, water: 0.5, grass: 0.5, ground: 2, rock: 2, dragon: 0.5 },
-    electric: { water: 2, electric: 0.5, grass: 0.5, ground: 0, flying: 2, dragon: 0.5 },
-    grass: { fire: 0.5, water: 2, grass: 0.5, poison: 0.5, ground: 2, flying: 0.5, bug: 0.5, rock: 2, dragon: 0.5, steel: 0.5 },
-    ice: { fire: 0.5, water: 0.5, grass: 2, ice: 0.5, ground: 2, flying: 2, dragon: 2, steel: 0.5 },
-    fighting: { normal: 2, ice: 2, poison: 0.5, flying: 0.5, psychic: 0.5, bug: 0.5, rock: 2, ghost: 0, dark: 2, steel: 2, fairy: 0.5 },
-    poison: { grass: 2, poison: 0.5, ground: 0.5, rock: 0.5, ghost: 0.5, steel: 0, fairy: 2 },
-    ground: { fire: 2, electric: 2, grass: 0.5, poison: 2, flying: 0, bug: 0.5, rock: 2, steel: 2 },
-    flying: { electric: 0.5, grass: 2, fighting: 2, bug: 2, rock: 0.5, steel: 0.5 },
-    psychic: { fighting: 2, poison: 2, psychic: 0.5, dark: 0, steel: 0.5 },
-    bug: { fire: 0.5, grass: 2, fighting: 0.5, poison: 0.5, flying: 0.5, psychic: 2, ghost: 0.5, dark: 2, steel: 0.5, fairy: 0.5 },
-    rock: { fire: 2, ice: 2, fighting: 0.5, ground: 0.5, flying: 2, bug: 2, steel: 0.5 },
-    ghost: { normal: 0, psychic: 2, ghost: 2, dark: 0.5 },
-    dragon: { dragon: 2, steel: 0.5, fairy: 0 },
-    dark: { fighting: 0.5, psychic: 2, ghost: 2, dark: 0.5, fairy: 0.5 },
-    steel: { fire: 0.5, water: 0.5, electric: 0.5, ice: 2, rock: 2, steel: 0.5, fairy: 2 },
-    fairy: { fire: 0.5, fighting: 2, poison: 0.5, dragon: 2, dark: 2, steel: 0.5 }
-  };
-
-  // Fetch basic Pokémon list
-  useEffect(() => {
-    const fetchPokemonList = async () => {
-      try {
-        const response = await fetch(`https://pokeapi.co/api/v2/pokemon?limit=${MAX_POKEMON}`);
-        const data = await response.json();
-        setPokemonList(data.results.map((p, i) => ({
-          id: i + 1,
-          name: p.name,
-          url: p.url
-        })));
-        setLoading(false);
-      } catch (error) {
-        console.error("Failed to fetch Pokémon list:", error);
-        setLoading(false);
-      }
-    };
-
-    fetchPokemonList();
-  }, []);
-
-  // Fetch detailed Pokémon data
-  const fetchPokemonDetails = async (pokemon) => {
-    try {
-      const response = await fetch(pokemon.url || `https://pokeapi.co/api/v2/pokemon/${pokemon.id}`);
-      const data = await response.json();
-
-      // Get 4 random moves
-      const moves = data.moves
-        .sort(() => 0.5 - Math.random())
-        .slice(0, 4)
-        .map(move => ({
-          name: move.move.name,
-          type: move.move.name.split('-')[0], // Simplified type
-          power: Math.floor(Math.random() * 60) + 40 // Random power 40-100
-        }));
-
-      return {
-        ...data,
-        id: pokemon.id || data.id,
-        name: pokemon.name || data.name,
-        stats: data.stats,
-        types: data.types,
-        sprites: data.sprites,
-        moves
-      };
-    } catch (error) {
-      console.error("Failed to fetch Pokémon details:", error);
-      return null;
-    }
-  };
-
-  // Initialize connection based on URL params
-  useEffect(() => {
-    const offer = searchParams.get('offer');
-    const hostId = searchParams.get('host');
-
-    if (offer && hostId) {
-      // Joining an existing battle
-      try {
-        const offerData = JSON.parse(decodeURIComponent(offer));
-        joinBattle(hostId, offerData);
-      } catch (e) {
-        console.error('Error parsing offer:', e);
-        setConnectionStatus('error');
-      }
-    } else {
-      // Creating a new battle
-      createBattle();
-    }
-
-    return () => {
-      if (peerRef.current) {
-        peerRef.current.destroy();
-      }
-    };
-  }, []);
-
-  // Scroll battle log to bottom
-  useEffect(() => {
-    if (battleLogRef.current) {
-      battleLogRef.current.scrollTop = battleLogRef.current.scrollHeight;
-    }
-  }, [battleLog]);
-
-  // Create a new battle
-  const createBattle = () => {
-    const newBattleId = uuidv4();
-    setBattleId(newBattleId);
-    setIsHost(true);
-    setConnectionStatus('waiting');
-    setWaitingForOpponent(true);
-
-    const peer = new Peer({
-      initiator: true,
-      trickle: false,
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:global.stun.twilio.com:3478?transport=udp' }
-        ]
-      }
-    });
-
-    peer.on('signal', (data) => {
-      if (data.type === 'offer') {
-        const link = `${window.location.origin}${window.location.pathname}?host=${newBattleId}&offer=${encodeURIComponent(JSON.stringify(data))}`;
-        setInvitationLink(link);
-      }
-    });
-
-    peer.on('connect', () => {
-      setConnectionStatus('connected');
-      setBattleStatus('selecting');
-    });
-
-    peer.on('data', handleData);
-    peer.on('error', handlePeerError);
-    peer.on('close', handlePeerClose);
-
-    peerRef.current = peer;
-  };
-
-  // Join an existing battle
-  const joinBattle = (hostId, offer) => {
-    setBattleId(hostId);
-    setIsHost(false);
-    setConnectionStatus('connecting');
-
-    const peer = new Peer({
-      initiator: false,
-      trickle: false,
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:global.stun.twilio.com:3478?transport=udp' }
-        ]
-      }
-    });
-
-    peer.on('signal', (data) => {
-      if (data.type === 'answer') {
-        sendMessage({ type: 'answer', payload: data });
-      }
-    });
-
-    peer.on('connect', () => {
-      setConnectionStatus('connected');
-      setBattleStatus('selecting');
-    });
-
-    peer.on('data', handleData);
-    peer.on('error', handlePeerError);
-    peer.on('close', handlePeerClose);
-
-    peer.signal(offer);
-    peerRef.current = peer;
-  };
-
-  // Handle incoming data
-  const handleData = (data) => {
-    try {
-      const message = JSON.parse(data);
-      switch (message.type) {
-        case 'pokemon_selected':
-          setEnemyPokemon(message.payload);
-          setRemotePokemonSelected(true);
-          if (selectedPokemon) {
-            startBattle(selectedPokemon, message.payload);
-          }
-          break;
-        case 'move':
-          opponentMove(message.payload);
-          break;
-        case 'battle_state':
-          syncBattleState(message.payload);
-          break;
-        default:
-          console.warn('Unknown message type:', message.type);
-      }
-    } catch (e) {
-      console.error('Error handling message:', e);
-    }
-  };
-
-  // Handle peer errors
-  const handlePeerError = (err) => {
-    console.error('Peer error:', err);
-    setConnectionStatus('error');
-    setBattleLog(prev => [...prev, 'Connection error!']);
-  };
-
-  // Handle peer disconnection
-  const handlePeerClose = () => {
-    console.log('Peer connection closed');
-    setConnectionStatus('disconnected');
-    setBattleLog(prev => [...prev, 'Opponent disconnected!']);
-  };
-
-  // Send message to peer
-  const sendMessage = (message) => {
-    if (peerRef.current && connectionStatus === 'connected') {
-      peerRef.current.send(JSON.stringify(message));
-    }
-  };
-
-  // Player selects Pokémon
-  const selectPokemon = async (pokemon) => {
-    const detailedPokemon = await fetchPokemonDetails(pokemon);
-    if (!detailedPokemon) return;
-
-    setSelectedPokemon(detailedPokemon);
-    sendMessage({ 
-      type: 'pokemon_selected', 
-      payload: detailedPokemon 
-    });
-
-    if (remotePokemonSelected) {
-      startBattle(detailedPokemon, enemyPokemon);
-    }
-  };
-
-  // Start the battle
-  const startBattle = (playerPokemon, opponentPokemon) => {
-    setBattleStatus('battling');
-    
-    const playerMaxHP = playerPokemon.stats.find(s => s.stat.name === 'hp').base_stat;
-    const enemyMaxHP = opponentPokemon.stats.find(s => s.stat.name === 'hp').base_stat;
-    
-    setPlayerHP(playerMaxHP);
-    setEnemyHP(enemyMaxHP);
-    
-    const initialLog = [
-      `Battle started between ${playerPokemon.name} and ${opponentPokemon.name}!`
-    ];
-    setBattleLog(initialLog);
-    
-    const playerSpeed = playerPokemon.stats.find(s => s.stat.name === 'speed').base_stat;
-    const enemySpeed = opponentPokemon.stats.find(s => s.stat.name === 'speed').base_stat;
-    
-    const firstTurn = playerSpeed >= enemySpeed ? 
-      (isHost ? 'player' : 'opponent') : 
-      (isHost ? 'opponent' : 'player');
-    
-    setCurrentTurn(firstTurn);
-    setBattleLog(prev => [...prev, 
-      firstTurn === 'player' ? 
-        `${playerPokemon.name} is faster and will attack first!` : 
-        `${opponentPokemon.name} is faster and will attack first!`
-    ]);
-
-    sendMessage({
-      type: 'battle_state',
-      payload: {
-        log: initialLog,
-        playerHP: playerMaxHP,
-        enemyHP: enemyMaxHP,
-        currentTurn: firstTurn,
-        status: 'battling'
-      }
-    });
-  };
-
-  // Player makes a move
-  const playerMove = (move) => {
-    if (battleStatus !== 'battling' || currentTurn !== 'player') return;
-
-    const damage = calculateDamage(selectedPokemon, enemyPokemon, move);
-    const newEnemyHP = Math.max(0, enemyHP - damage);
-
-    let effectiveness = 1;
-    enemyPokemon.types.forEach(t => {
-      if (typeEffectiveness[move.type]?.[t.type.name]) {
-        effectiveness *= typeEffectiveness[move.type][t.type.name];
-      }
-    });
-
-    let effectivenessMsg = '';
-    if (effectiveness > 1) effectivenessMsg = " It's super effective!";
-    else if (effectiveness < 1 && effectiveness > 0) effectivenessMsg = " It's not very effective...";
-    else if (effectiveness === 0) effectivenessMsg = " It has no effect!";
-
-    const newLog = [
-      ...battleLog,
-      `${selectedPokemon.name} used ${move.name}!${effectivenessMsg}`,
-      `It dealt ${damage} damage to ${enemyPokemon.name}!`
-    ];
-
-    setBattleLog(newLog);
-    setEnemyHP(newEnemyHP);
-
-    if (newEnemyHP <= 0) {
-      const victoryLog = [...newLog, `${enemyPokemon.name} fainted!`, `${selectedPokemon.name} wins the battle!`];
-      setBattleLog(victoryLog);
-      setBattleStatus('finished');
-      sendBattleState(victoryLog, playerHP, newEnemyHP, null, 'finished');
-      return;
-    }
-
-    setCurrentTurn('opponent');
-    sendMessage({
-      type: 'move',
-      payload: move
-    });
-    sendBattleState(newLog, playerHP, newEnemyHP, 'opponent');
-  };
-
-  // Opponent makes a move
-  const opponentMove = (move) => {
-    if (battleStatus !== 'battling' || currentTurn !== 'opponent') return;
-
-    const damage = calculateDamage(enemyPokemon, selectedPokemon, move);
-    const newPlayerHP = Math.max(0, playerHP - damage);
-
-    let effectiveness = 1;
-    selectedPokemon.types.forEach(t => {
-      if (typeEffectiveness[move.type]?.[t.type.name]) {
-        effectiveness *= typeEffectiveness[move.type][t.type.name];
-      }
-    });
-
-    let effectivenessMsg = '';
-    if (effectiveness > 1) effectivenessMsg = " It's super effective!";
-    else if (effectiveness < 1 && effectiveness > 0) effectivenessMsg = " It's not very effective...";
-    else if (effectiveness === 0) effectivenessMsg = " It has no effect!";
-
-    const newLog = [
-      ...battleLog,
-      `${enemyPokemon.name} used ${move.name}!${effectivenessMsg}`,
-      `It dealt ${damage} damage to ${selectedPokemon.name}!`
-    ];
-
-    setBattleLog(newLog);
-    setPlayerHP(newPlayerHP);
-
-    if (newPlayerHP <= 0) {
-      const defeatLog = [...newLog, `${selectedPokemon.name} fainted!`, `${enemyPokemon.name} wins the battle!`];
-      setBattleLog(defeatLog);
-      setBattleStatus('finished');
-      sendBattleState(defeatLog, newPlayerHP, enemyHP, null, 'finished');
-      return;
-    }
-
-    setCurrentTurn('player');
-    sendBattleState(newLog, newPlayerHP, enemyHP, 'player');
-  };
-
-  // Calculate damage
-  const calculateDamage = (attacker, defender, move) => {
-    const attackStat = attacker.stats.find(s => s.stat.name === 'attack').base_stat;
-    const defenseStat = defender.stats.find(s => s.stat.name === 'defense').base_stat;
-
-    const stab = attacker.types.some(t => t.type.name === move.type) ? 1.5 : 1;
-
-    let effectiveness = 1;
-    defender.types.forEach(t => {
-      if (typeEffectiveness[move.type]?.[t.type.name]) {
-        effectiveness *= typeEffectiveness[move.type][t.type.name];
-      }
-    });
-
-    const randomFactor = 0.85 + Math.random() * 0.15;
-
-    return Math.max(1, Math.floor(
-      (move.power * (attackStat / defenseStat) * stab * effectiveness * randomFactor
-    )));
-  };
-
-  // Send battle state to peer
-  const sendBattleState = (log, playerHP, enemyHP, currentTurn, status = battleStatus) => {
-    sendMessage({
-      type: 'battle_state',
-      payload: {
-        log,
-        playerHP,
-        enemyHP,
-        currentTurn,
-        status
-      }
-    });
-  };
-
-  // Sync battle state from peer
-  const syncBattleState = (state) => {
-    setBattleLog(state.log);
-    setPlayerHP(state.playerHP);
-    setEnemyHP(state.enemyHP);
-    setCurrentTurn(state.currentTurn);
-    setBattleStatus(state.status);
-  };
-
-  // Get type color
   const getTypeColor = (type) => {
+    const typeColors = {
+      normal: "#A8A878",
+      fire: "#F08030",
+      water: "#6890F0",
+      electric: "#F8D030",
+      grass: "#78C850",
+      ice: "#98D8D8",
+      fighting: "#C03028",
+      poison: "#A040A0",
+      ground: "#E0C068",
+      flying: "#A890F0",
+      psychic: "#F85888",
+      bug: "#A8B820",
+      rock: "#B8A038",
+      ghost: "#705898",
+      dragon: "#7038F8",
+      dark: "#705848",
+      steel: "#B8B8D0",
+      fairy: "#EE99AC",
+    };
     return typeColors[type?.toLowerCase()] || "#777";
   };
 
-  // Copy invitation link
+  // Socket.io connection setup
+  useEffect(() => {
+    const battleIdParam = searchParams.get('battleId');
+    
+    socketRef.current = io(SOCKET_SERVER_URL, {
+      autoConnect: false,
+      query: { playerId: playerIdRef.current },
+      transports: ['websocket'],
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      withCredentials: true
+    });
+
+    const socket = socketRef.current;
+
+    socket.on('connect', () => {
+      console.log('Connected to Socket.io server');
+      setConnectionStatus('connected');
+
+      const initializeData = async () => {
+        await fetchBasicOpponents();
+        await fetchTypes();
+        setLoading(false);
+      };
+      
+      initializeData();
+    
+      if (!battleIdParam) {
+        setWaitingForOpponent(true);
+      }
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from Socket.io server');
+      setConnectionStatus('disconnected');
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket.io connection error:', error);
+      setConnectionStatus('error');
+    });
+
+    socket.on('player_connected', () => {
+      setConnectionStatus('connected');
+      if (isHost) {
+        setBattleLog(prev => [...prev, 'Opponent connected!']);
+      }
+      setWaitingForOpponent(false);
+    });
+
+    socket.on('pokemon_selected', (pokemon) => {
+      setEnemyPokemon(pokemon);
+      setRemotePokemonSelected(true);
+      if (selectedPokemon) {
+        calculateBattleResult(selectedPokemon, pokemon);
+      }
+    });
+
+    socket.on('battle_state', (state) => {
+      syncBattleState(state);
+    });
+
+    socket.on('error', (error) => {
+      console.error('Server error:', error);
+      setConnectionStatus('error');
+    });
+
+    socket.on('room_created', (roomId) => {
+      setBattleId(roomId);
+      setIsHost(true);
+      setConnectionStatus('waiting');
+      const link = `${window.location.origin}${window.location.pathname}?battleId=${roomId}`;
+      setInvitationLink(link);
+      setLoading(false);
+    });
+
+    socket.on('room_joined', (roomId) => {
+      setBattleId(roomId);
+      setIsHost(false);
+      setConnectionStatus('connected');
+      setWaitingForOpponent(false);
+      setLoading(false);
+    });
+
+    socket.on('room_full', () => {
+      alert('This battle room is already full!');
+      navigate('/pokemon-battle');
+    });
+
+    socket.connect();
+
+    if (battleIdParam) {
+      socket.emit('join_room', battleIdParam);
+    } else {
+      socket.emit('create_room');
+    }
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
+
+  const fetchTypes = useCallback(async () => {
+    try {
+      const response = await fetch("https://pokeapi.co/api/v2/type");
+      const data = await response.json();
+      setTypes(data.results.filter(type => type.name !== "unknown" && type.name !== "shadow"));
+    } catch (error) {
+      console.error("Failed to fetch Pokémon types:", error);
+    }
+  }, []);
+
+  const fetchBasicOpponents = useCallback(async () => {
+    if (basicOpponents.length > 0) {
+      setLoading(false);
+      return;
+    }
+  
+    setIsLoadingOpponents(true);
+    try {
+      const response = await fetch(`https://pokeapi.co/api/v2/pokemon?limit=${MAX_POKEMON}`);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      
+      const data = await response.json();
+      const basicList = data.results.slice(0, MAX_POKEMON).map((p, index) => ({
+        id: index + 1,
+        name: p.name,
+        url: p.url,
+        classification: getPokemonClassification(index + 1),
+        loaded: false
+      }));
+  
+      setBasicOpponents(basicList);
+      setFilteredOpponents(basicList);
+      setTotalPages(Math.ceil(basicList.length / POKEMONS_PER_PAGE));
+      
+      // Preload first page of Pokémon details
+      const toPreload = basicList.slice(0, POKEMONS_PER_PAGE);
+      const enhanced = await Promise.all(
+        toPreload.map(pokemon => enhancePokemonDetails(pokemon))
+      );
+      
+      setEnhancedOpponents(prev => {
+        const newMap = new Map(prev);
+        enhanced.forEach(p => newMap.set(p.id, p));
+        return newMap;
+      });
+      
+      setLoading(false);
+    } catch (error) {
+      console.error("Failed to fetch opponent list:", error);
+      setLoading(false);
+    } finally {
+      setIsLoadingOpponents(false);
+    }
+  }, [basicOpponents.length]);
+
+  const enhancePokemonDetails = useCallback(async (pokemon) => {
+    if (enhancedOpponents.has(pokemon.id)) {
+      return enhancedOpponents.get(pokemon.id);
+    }
+  
+    try {
+      const response = await fetch(pokemon.url);
+      const pokemonData = await response.json();
+      
+      // Ensure stats are properly formatted
+      const stats = [
+        { stat: { name: 'hp' }, base_stat: pokemonData.stats[0].base_stat },
+        { stat: { name: 'attack' }, base_stat: pokemonData.stats[1].base_stat },
+        { stat: { name: 'defense' }, base_stat: pokemonData.stats[2].base_stat },
+        { stat: { name: 'special-attack' }, base_stat: pokemonData.stats[3].base_stat },
+        { stat: { name: 'special-defense' }, base_stat: pokemonData.stats[4].base_stat },
+        { stat: { name: 'speed' }, base_stat: pokemonData.stats[5].base_stat }
+      ];
+
+      const enhanced = {
+        ...pokemon,
+        ...pokemonData,
+        classification: pokemon.classification,
+        stats: stats,
+        loaded: true
+      };
+  
+      return enhanced;
+    } catch (error) {
+      console.error(`Failed to enhance Pokémon ${pokemon.id}:`, error);
+      return {
+        ...pokemon,
+        stats: [
+          { stat: { name: 'hp' }, base_stat: 0 },
+          { stat: { name: 'attack' }, base_stat: 0 },
+          { stat: { name: 'defense' }, base_stat: 0 },
+          { stat: { name: 'special-attack' }, base_stat: 0 },
+          { stat: { name: 'special-defense' }, base_stat: 0 },
+          { stat: { name: 'speed' }, base_stat: 0 }
+        ],
+        loaded: false
+      };
+    }
+  }, [enhancedOpponents]);
+
+  useEffect(() => {
+    if (basicOpponents.length === 0) return;
+
+    const filtered = basicOpponents.filter(pokemon => {
+      const matchesSearch = pokemon.name.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      let matchesType = selectedType === "all";
+      if (enhancedOpponents.has(pokemon.id)) {
+        const enhanced = enhancedOpponents.get(pokemon.id);
+        matchesType = selectedType === "all" || 
+          (enhanced.types && enhanced.types.some(type => type.type.name === selectedType));
+      }
+      
+      return matchesSearch && matchesType;
+    });
+
+    setFilteredOpponents(filtered);
+    setTotalPages(Math.ceil(filtered.length / POKEMONS_PER_PAGE));
+  }, [searchTerm, selectedType, basicOpponents, enhancedOpponents]);
+
+  const getPaginatedOpponents = useCallback(() => {
+    const startIndex = (currentPage - 1) * POKEMONS_PER_PAGE;
+    const endIndex = startIndex + POKEMONS_PER_PAGE;
+    
+    return filteredOpponents
+      .slice(startIndex, endIndex)
+      .map(pokemon => enhancedOpponents.get(pokemon.id) || pokemon);
+  }, [currentPage, filteredOpponents, enhancedOpponents]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    setCurrentPage(newPage);
+    
+    // Enhance Pokémon details for the new page
+    const paginated = getPaginatedOpponents();
+    const toEnhance = paginated.filter(p => !p.loaded && !enhancedOpponents.has(p.id));
+    
+    if (toEnhance.length > 0) {
+      setIsLoadingOpponents(true);
+      Promise.all(
+        toEnhance.map(pokemon => enhancePokemonDetails(pokemon))
+      ).then(enhanced => {
+        setEnhancedOpponents(prev => {
+          const newMap = new Map(prev);
+          enhanced.forEach(p => newMap.set(p.id, p));
+          return newMap;
+        });
+        setIsLoadingOpponents(false);
+      });
+    }
+  };
+
+  const selectPokemon = async (pokemon) => {
+    const detailedPokemon = await enhancePokemonDetails(pokemon);
+    if (!detailedPokemon) return;
+  
+    setSelectedPokemon(detailedPokemon);
+    
+    // Send selection to opponent
+    socketRef.current.emit('pokemon_selected', {
+      room: battleId,
+      pokemon: detailedPokemon
+    });
+  
+    // If both Pokémon are selected, calculate result
+    if (remotePokemonSelected && enemyPokemon) {
+      calculateBattleResult(detailedPokemon, enemyPokemon);
+    }
+  };
+
+  const calculateBattleResult = (playerPokemon, opponentPokemon) => {
+    if (!playerPokemon || !opponentPokemon) return null;
+    
+    let playerWins = 0;
+    let enemyWins = 0;
+    let draws = 0;
+    
+    const comparisons = playerPokemon.stats.map((playerStat, index) => {
+      const enemyStat = opponentPokemon.stats[index].base_stat;
+      if (playerStat.base_stat > enemyStat) playerWins++;
+      else if (playerStat.base_stat < enemyStat) enemyWins++;
+      else draws++;
+      
+      return {
+        name: playerStat.stat.name.replace('-', ' '),
+        player: playerStat.base_stat,
+        enemy: enemyStat,
+        winner: playerStat.base_stat > enemyStat ? 'player' : 
+                playerStat.base_stat < enemyStat ? 'enemy' : 'draw'
+      };
+    });
+
+    let result;
+    if (playerWins > enemyWins) {
+      result = 'player';
+    } else if (playerWins < enemyWins) {
+      result = 'opponent';
+    } else {
+      result = 'draw';
+    }
+
+    setBattleResult({
+      comparisons,
+      totalWins: {
+        player: playerWins,
+        enemy: enemyWins,
+        draws: draws,
+        total: comparisons.length
+      }
+    });
+
+    // Send battle state to opponent
+    sendBattleState({
+      playerPokemon,
+      opponentPokemon,
+      result: {
+        comparisons,
+        totalWins: {
+          player: playerWins,
+          enemy: enemyWins,
+          draws: draws,
+          total: comparisons.length
+        }
+      }
+    });
+  };
+
+  const sendBattleState = (state) => {
+    if (!socketRef.current) return;
+    
+    socketRef.current.emit('battle_state', {
+      room: battleId,
+      state: state
+    });
+  };
+
+  const syncBattleState = (state) => {
+    if (state.playerPokemon && !selectedPokemon) {
+      setSelectedPokemon(state.playerPokemon);
+    }
+    if (state.opponentPokemon && !enemyPokemon) {
+      setEnemyPokemon(state.opponentPokemon);
+    }
+    
+    if (state.result) {
+      setBattleResult(state.result);
+    }
+  };
+
   const copyInvitationLink = () => {
     navigator.clipboard.writeText(invitationLink);
     alert('Link copied to clipboard!');
   };
 
-  // Reset battle
-  const resetBattle = () => {
-    if (peerRef.current) {
-      peerRef.current.destroy();
-    }
-    navigate('/pokemon-battle');
+  
+
+  const getStatPercentage = (value) => {
+    return Math.min(100, Math.round((value / 255) * 100));
   };
 
-  // Loading state
-  if (loading) {
+  const PokemonBattleCard = ({ pokemon, isPlayer }) => {
+    if (!pokemon) return null;
+    
+    const formatStatName = (name) => {
+      return name.replace('-', ' ')
+                .replace('special', 'Sp.')
+                .replace('attack', 'Atk')
+                .replace('defense', 'Def')
+                .replace('hp', 'HP')
+                .replace(/\b\w/g, l => l.toUpperCase());
+    };
+  
     return (
-      <div className="p2p-loading">
-        <div className="pokeball-spinner">
-          <div className="pokeball-top"></div>
-          <div className="pokeball-bottom"></div>
-          <div className="pokeball-center"></div>
+      <div className={`battle-card ${isPlayer ? 'player' : 'enemy'}`}>
+        <div className="battle-card-header">
+          <span className="pokemon-classification" data-classification={pokemon.classification?.type}>
+            {pokemon.classification?.label}
+          </span>
+          <div className="hp-display">
+            <span className="hp-value">
+              {pokemon.stats && pokemon.stats[0] ? pokemon.stats[0].base_stat : '—'}
+            </span>
+            <span className="hp-icon">HP</span>
+          </div>
         </div>
-        <p>Loading Pokémon...</p>
-      </div>
-    );
-  }
-
-  // Connection error state
-  if (connectionStatus === 'error') {
-    return (
-      <div className="p2p-error">
-        <h2>Connection Error</h2>
-        <p>Failed to establish connection with opponent</p>
-        <button onClick={resetBattle} className="p2p-button">
-          Go Back
-        </button>
-      </div>
-    );
-  }
-
-  // Waiting for opponent (host)
-  if (waitingForOpponent) {
-    return (
-      <>
-        <Navbar />
-        <div className="p2p-waiting">
-          <div className="p2p-waiting-header">
-            <button onClick={resetBattle} className="p2p-back-button">
-              <FaArrowLeft /> Cancel
-            </button>
-            <h2>Waiting for Opponent</h2>
-          </div>
+  
+        <div 
+          className="pokemon-image-container"
+          style={{
+            backgroundColor: `${getTypeColor(pokemon.types?.[0]?.type?.name)}30`,
+            backgroundImage: `radial-gradient(circle at center, ${getTypeColor(pokemon.types?.[0]?.type?.name)}30 0%, transparent 70%)`
+          }}
+        >
+          <img
+            src={pokemon.sprites?.other?.["official-artwork"]?.front_default}
+            alt={pokemon.name}
+            className="pokemon-image"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/0.png';
+            }}
+          />
+        </div>
+  
+        <div className="card-body">
+          <h2 className="pokemon-name">
+            {pokemon.name?.charAt(0).toUpperCase() + pokemon.name?.slice(1)}
+          </h2>
           
-          <div className="p2p-waiting-content">
-            <div className="p2p-spinner"></div>
-            <p>Share this invitation with your opponent</p>
-            
-            <button 
-              onClick={() => setShowInvitationModal(true)}
-              className="p2p-button"
-            >
-              <FaQrcode /> Show Invitation
-            </button>
-            
-            <div className={`p2p-status ${connectionStatus}`}>
-              Status: {connectionStatus === 'waiting' ? 'Waiting for opponent...' : 'Connected!'}
-            </div>
-          </div>
-          
-          {showInvitationModal && (
-            <div className="p2p-modal">
-              <div className="p2p-modal-content">
-                <h3>Invite Your Opponent</h3>
-                <div className="p2p-qr-code">
-                  <QRCodeSVG value={invitationLink} size={200} />
-                </div>
-                <div className="p2p-link-container">
-                  <input 
-                    type="text" 
-                    value={invitationLink} 
-                    readOnly 
-                    className="p2p-link-input"
-                  />
-                  <button onClick={copyInvitationLink} className="p2p-copy-button">
-                    <FaCopy /> Copy
-                  </button>
-                </div>
-                <button 
-                  onClick={() => setShowInvitationModal(false)}
-                  className="p2p-button"
+          <div className="type-container">
+            <div className="type-tags">
+              {pokemon.types?.map((type, index) => (
+                <span
+                  key={index}
+                  className="type-tag"
+                  style={{ backgroundColor: getTypeColor(type.type.name) }}
                 >
-                  Close
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </>
-    );
-  }
-
-  // Pokémon selection screen
-  if (battleStatus === 'selecting') {
-    return (
-      <>
-        <Navbar />
-        <div className="p2p-selection">
-          <div className="p2p-selection-header">
-            <button onClick={resetBattle} className="p2p-back-button">
-              <FaArrowLeft /> Cancel
-            </button>
-            <h2>Select Your Pokémon</h2>
-            <div className={`p2p-status ${connectionStatus}`}>
-              Status: {connectionStatus === 'connected' ? 'Connected!' : 'Connecting...'}
+                  {type.type.name}
+                </span>
+              ))}
             </div>
           </div>
-          
-          <div className="p2p-pokemon-grid">
-            {pokemonList.map(pokemon => (
-              <div 
-                key={pokemon.id} 
-                className="p2p-pokemon-card"
-                onClick={() => selectPokemon(pokemon)}
-              >
-                <div className="p2p-pokemon-image">
-                  <img
-                    src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${pokemon.id}.png`}
-                    alt={pokemon.name}
-                    onError={(e) => {
-                      e.target.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/0.png';
+  
+          <div className="stats-container">
+            {pokemon.stats?.map((stat, index) => (
+              <div key={index} className="stat-item">
+                <div className="stat-info">
+                  <span className="stat-name">{formatStatName(stat.stat.name)}</span>
+                  <span className="stat-value">{stat.base_stat}</span>
+                </div>
+                <div className="stat-bar-wrapper">
+                  <div 
+                    className="stat-bar" 
+                    style={{
+                      width: `${getStatPercentage(stat.base_stat)}%`,
+                      backgroundColor: getTypeColor(pokemon.types?.[0]?.type?.name),
+                      opacity: 0.8
                     }}
-                  />
+                  >
+                    <div className="stat-bar-highlight"></div>
+                  </div>
                 </div>
-                <div className="p2p-pokemon-name">
-                  {pokemon.name.charAt(0).toUpperCase() + pokemon.name.slice(1)}
-                </div>
-                <div className="p2p-pokemon-id">#{pokemon.id}</div>
               </div>
             ))}
           </div>
         </div>
-      </>
+      </div>
     );
-  }
+  };
 
-  // Battle screen
-  return (
+  const PokemonCard = ({ pokemon, onSelect }) => {
+    const mainType = pokemon.types?.[0]?.type?.name || 'normal';
+    const typeColor = getTypeColor(mainType);
+    const enhancedPokemon = enhancedOpponents.get(pokemon.id) || pokemon;
+
+    return (
+      <div className="pokemon-card" style={{ "--type-color": typeColor }}>
+        <div className="battle-card-header">
+          <span className="battle-pokemon-classification" data-classification={pokemon.classification?.type}>
+            {pokemon.classification?.label}
+          </span>
+          <span className="battle-pokemon-hp">
+            {enhancedPokemon.stats?.find(s => s.stat.name === 'hp')?.base_stat || '??'} HP
+          </span>
+        </div>
+        
+        <div className="battle-pokemon-image-container" style={{
+          backgroundColor: `${typeColor}30`,
+          backgroundImage: `radial-gradient(circle at center, ${typeColor}30 0%, transparent 70%)`,
+        }}>
+          {enhancedPokemon.loaded ? (
+            <img
+              src={enhancedPokemon.sprites?.other?.["official-artwork"]?.front_default}
+              alt={enhancedPokemon.name}
+              className="battle-pokemon-image"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/0.png';
+              }}
+            />
+          ) : (
+            <div className="image-placeholder">Loading...</div>
+          )}
+        </div>
+        
+        <div className="battle-pokemon-name">
+          {enhancedPokemon.name?.charAt(0).toUpperCase() + enhancedPokemon.name?.slice(1)}
+        </div>
+        
+        <button 
+          className="add-button-in-team"
+          style={{ backgroundColor: typeColor }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(enhancedPokemon);
+          }}
+        >
+          Choose for Battle
+        </button>
+        
+        <div className="battle-pokemon-stats">
+          {enhancedPokemon.stats?.map((stat, index) => (
+            <div key={index} className="stat-item">
+              <span className="stat-name">
+                {stat.stat.name.replace('-', ' ')
+                  .replace('special', 'Sp.')
+                  .replace('attack', 'Atk')
+                  .replace('defense', 'Def')
+                  .replace('hp', 'HP')
+                  .replace(/\b\w/g, l => l.toUpperCase())}
+              </span>
+              <span className="stat-value">
+                {stat.base_stat || '?'}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const LoadingScreen = () => (
+    <div className="pokedex-loading">
+      <div className="pokeball1-loading">
+        <div className="pokeball1-top"></div>
+        <div className="pokeball1-bottom"></div>
+        <div className="pokeball1-middle"></div>
+        <div className="pokeball1-center"></div>
+        <div className="pokeball1-center-inner"></div>
+      </div>
+      <p className="loading-text">Waiting for Opponent to choose</p>
+    </div>
+  );
+
+  const ErrorScreen = () => (
+    <div className="p2p-error">
+      <h2>Connection Error</h2>
+      <p>Failed to establish connection with opponent</p>
+      <button onClick={resetBattle} className="p2p-button">
+        Go Back
+      </button>
+    </div>
+  );
+
+  const WaitingForOpponentScreen = () => (
     <>
       <Navbar />
-      <div className="p2p-battle">
-        <div className="p2p-battle-header">
-          <button onClick={resetBattle} className="p2p-back-button">
-            <FaArrowLeft /> End Battle
+      <div className="p2p-waiting">
+        <div className="p2p-waiting-header">
+          
+          <h2>Waiting for Opponent</h2>
+        </div>
+        
+        <div className="p2p-waiting-content">
+          <div className="p2p-spinner"></div>
+          <p>Share this invitation with your opponent</p>
+          
+          <button 
+            onClick={() => setShowInvitationModal(true)}
+            className="p2p-button"
+          >
+            <FaQrcode /> Show Invitation
           </button>
-          <h2>Pokémon Battle</h2>
+          
           <div className={`p2p-status ${connectionStatus}`}>
-            {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
+            Status: {connectionStatus === 'waiting' ? 'Waiting for opponent...' : 'Connected!'}
           </div>
         </div>
         
-        <div className="p2p-battle-field">
-          {/* Opponent Pokémon */}
-          <div className={`p2p-battle-pokemon p2p-opponent ${currentTurn === 'opponent' ? 'p2p-active-turn' : ''}`}>
-            <div className="p2p-pokemon-info">
-              <h3>{enemyPokemon.name.charAt(0).toUpperCase() + enemyPokemon.name.slice(1)}</h3>
-              <div className="p2p-hp-bar-container">
-                <div 
-                  className="p2p-hp-bar"
-                  style={{
-                    width: `${(enemyHP / enemyPokemon.stats.find(s => s.stat.name === 'hp').base_stat) * 100}%`,
-                    backgroundColor: enemyHP / enemyPokemon.stats.find(s => s.stat.name === 'hp').base_stat < 0.2 ? '#ff0000' :
-                                    enemyHP / enemyPokemon.stats.find(s => s.stat.name === 'hp').base_stat < 0.5 ? '#ffa500' : '#4CAF50'
-                  }}
-                ></div>
+        {showInvitationModal && (
+          <div className="p2p-modal">
+            <div className="p2p-modal-content">
+              <h3>Invite Your Opponent</h3>
+              <div className="p2p-qr-code">
+                <QRCodeSVG value={invitationLink} size={200} />
               </div>
-              <div className="p2p-hp-text">
-                HP: {enemyHP} / {enemyPokemon.stats.find(s => s.stat.name === 'hp').base_stat}
+              <div className="p2p-link-container">
+                <input 
+                  type="text" 
+                  value={invitationLink} 
+                  readOnly 
+                  className="p2p-link-input"
+                />
+                <button onClick={copyInvitationLink} className="p2p-copy-button">
+                  <FaCopy /> Copy
+                </button>
               </div>
-            </div>
-            
-            <div 
-              className="p2p-pokemon-image-container"
-              style={{
-                backgroundColor: `${getTypeColor(enemyPokemon.types[0].type.name)}30`,
-                backgroundImage: `radial-gradient(circle at center, ${getTypeColor(enemyPokemon.types[0].type.name)}30 0%, transparent 70%)`
-              }}
-            >
-              <img
-                src={enemyPokemon.sprites.other["official-artwork"].front_default}
-                alt={enemyPokemon.name}
-                onError={(e) => {
-                  e.target.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/0.png';
-                }}
-              />
-            </div>
-          </div>
-          
-          {/* VS Circle */}
-          <div className="p2p-vs-circle">
-            <span>VS</span>
-          </div>
-          
-          {/* Player Pokémon */}
-          <div className={`p2p-battle-pokemon p2p-player ${currentTurn === 'player' ? 'p2p-active-turn' : ''}`}>
-            <div 
-              className="p2p-pokemon-image-container"
-              style={{
-                backgroundColor: `${getTypeColor(selectedPokemon.types[0].type.name)}30`,
-                backgroundImage: `radial-gradient(circle at center, ${getTypeColor(selectedPokemon.types[0].type.name)}30 0%, transparent 70%)`
-              }}
-            >
-              <img
-                src={selectedPokemon.sprites.other["official-artwork"].front_default}
-                alt={selectedPokemon.name}
-              />
-            </div>
-            
-            <div className="p2p-pokemon-info">
-              <h3>{selectedPokemon.name.charAt(0).toUpperCase() + selectedPokemon.name.slice(1)}</h3>
-              <div className="p2p-hp-bar-container">
-                <div 
-                  className="p2p-hp-bar"
-                  style={{
-                    width: `${(playerHP / selectedPokemon.stats.find(s => s.stat.name === 'hp').base_stat) * 100}%`,
-                    backgroundColor: playerHP / selectedPokemon.stats.find(s => s.stat.name === 'hp').base_stat < 0.2 ? '#ff0000' :
-                                    playerHP / selectedPokemon.stats.find(s => s.stat.name === 'hp').base_stat < 0.5 ? '#ffa500' : '#4CAF50'
-                  }}
-                ></div>
-              </div>
-              <div className="p2p-hp-text">
-                HP: {playerHP} / {selectedPokemon.stats.find(s => s.stat.name === 'hp').base_stat}
-              </div>
-            </div>
-          </div>
-          
-          {/* Move Selection */}
-          {currentTurn === 'player' && battleStatus === 'battling' && (
-            <div className="p2p-move-selection">
-              <h4>Choose a Move:</h4>
-              <div className="p2p-move-buttons">
-                {selectedPokemon.moves.map((move, index) => (
-                  <button
-                    key={index}
-                    className="p2p-move-button"
-                    style={{ backgroundColor: getTypeColor(move.type) }}
-                    onClick={() => playerMove(move)}
-                  >
-                    <span className="p2p-move-name">{move.name}</span>
-                    <span className="p2p-move-power">{move.power}</span>
-                    <span 
-                      className="p2p-move-type"
-                      style={{ backgroundColor: getTypeColor(move.type) }}
-                    >
-                      {move.type}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {/* Battle Result */}
-          {battleStatus === 'finished' && (
-            <div className="p2p-battle-result">
               <button 
-                onClick={resetBattle}
+                onClick={() => setShowInvitationModal(false)}
                 className="p2p-button"
               >
-                New Battle
+                Close
               </button>
             </div>
-          )}
-        </div>
-        
-        {/* Battle Log */}
-        <div className="p2p-battle-log" ref={battleLogRef}>
-          <h4>Battle Log</h4>
-          <div className="p2p-log-content">
-            {battleLog.map((log, index) => (
-              <p key={index}>{log}</p>
-            ))}
           </div>
-        </div>
+        )}
       </div>
     </>
   );
+
+  const PokemonSelectionScreen = () => (
+    <>
+      <Navbar />
+      <div className="battle-pokedex-container">
+        <div className="battle-pokedex-header">
+          <h1>Pokémon Stats-Battle</h1>
+          <p className="battle-team-subtitle">Select your Pokémon</p>
+        </div>
+
+        <div className="controls-container">
+          <div className="search-container">
+            <FaSearch className="search-icon" />
+            <input
+              type="text"
+              placeholder="Search Pokémon..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="filter-container">
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+            >
+              <option value="all">All Types</option>
+              {types.map((type) => (
+                <option key={type.name} value={type.name}>
+                  {type.name.charAt(0).toUpperCase() + type.name.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {isLoadingOpponents ? (
+          <LoadingScreen />
+        ) : (
+          <>
+            <div className="battle-grid">
+              {getPaginatedOpponents().map((pokemon) => (
+                <PokemonCard 
+                  key={pokemon.id}
+                  pokemon={pokemon}
+                  onSelect={selectPokemon}
+                />
+              ))}
+            </div>
+
+            <div className="pagination">
+              <button onClick={() => handlePageChange(1)} disabled={currentPage === 1}>
+                « First
+              </button>
+              <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1}>
+                ‹ Prev
+              </button>
+
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => handlePageChange(pageNum)}
+                    className={currentPage === pageNum ? "active" : ""}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+
+              <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages}>
+                Next ›
+              </button>
+              <button onClick={() => handlePageChange(totalPages)} disabled={currentPage === totalPages}>
+                Last »
+              </button>
+            </div>
+
+            <div className="page-info">
+              Page {currentPage} of {totalPages} | Showing {getPaginatedOpponents().length} of {filteredOpponents.length} Pokémon
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+
+  const BattleResultsScreen = () => (
+    <>
+      <Navbar />
+      <div className="battle-pokedex-container">
+        <div className="battle-pokedex-header">
+          <button 
+            className="back-button"
+            onClick={() => {
+              setSelectedPokemon(null);
+              setEnemyPokemon(null);
+              setBattleResult(null);
+            }}
+          >
+            <FaArrowLeft /> New Battle
+          </button>
+          <h1>Pokémon Stats-Battle</h1>
+        </div>
+
+        <div className="battle-comparison-container">
+          <PokemonBattleCard pokemon={selectedPokemon} isPlayer={true} />
+          
+          <div className="vs-container">
+            <div className="vs-badge">
+              <div className="vs-label">VS</div>
+            </div>
+          </div>
+
+          <PokemonBattleCard pokemon={enemyPokemon} isPlayer={false} />
+        </div>
+
+        {battleResult && (
+          <>
+            <div className="battle-result">
+              <h3 className="result-text">
+                {battleResult.totalWins.player > battleResult.totalWins.enemy 
+                  ? `${selectedPokemon.name?.toUpperCase()} WINS!`
+                  : battleResult.totalWins.player < battleResult.totalWins.enemy
+                    ? `${enemyPokemon.name?.toUpperCase()} WINS!`
+                    : `IT'S A DRAW!`}
+              </h3>
+              <div className="score-display">
+                <span className="player-score" style={{ color: getTypeColor(selectedPokemon?.types?.[0]?.type?.name) }}>
+                  {battleResult.totalWins.player} 
+                </span>
+                -
+                <span className="draws-score">
+                  {battleResult.totalWins.draws}
+                </span>
+                -
+                <span className="enemy-score" style={{ color: getTypeColor(enemyPokemon?.types?.[0]?.type?.name) }}>
+                  {battleResult.totalWins.enemy}
+                </span>
+              </div>
+            </div>
+
+            <div className="stat-comparison-container">
+              <h3 className="comparison-title">Stat Comparison</h3>
+              <div className="comparison-grid">
+                {battleResult?.comparisons.map((stat, index) => (
+                  <div key={index} className="comparison-item">
+                    <div className="stat-name">{stat.name.replace('special-', 'Sp. ')}</div>
+                    <div className="stat-values">
+                      <span className="player-value" style={{ color: getTypeColor(selectedPokemon?.types?.[0]?.type?.name) }}>
+                        {stat.player}
+                      </span>
+                      <div className="stat-bar-container">
+                        <div 
+                          className="stat-bar" 
+                          style={{ 
+                            width: '100%',
+                            background: `linear-gradient(to right, 
+                              ${getTypeColor(selectedPokemon?.types?.[0]?.type?.name)} ${(stat.player / (stat.player + stat.enemy)) * 100}%, 
+                              ${getTypeColor(enemyPokemon?.types?.[0]?.type?.name)} ${(stat.player / (stat.player + stat.enemy)) * 100}%`
+                          }}
+                        ></div>
+                      </div>
+                      <span className="enemy-value" style={{ color: getTypeColor(enemyPokemon?.types?.[0]?.type?.name) }}>
+                        {stat.enemy}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+
+  // Main render logic
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (connectionStatus === 'error') {
+    return <ErrorScreen />;
+  }
+
+  if (isHost && waitingForOpponent) {
+    return <WaitingForOpponentScreen />;
+  }
+
+  if (!selectedPokemon) {
+    return <PokemonSelectionScreen />;
+  }
+
+  if (selectedPokemon && enemyPokemon) {
+    return <BattleResultsScreen />;
+  }
+
+  // Fallback - should never reach here
+  return <LoadingScreen />;
 };
 
 export default PokemonP2PBattle;

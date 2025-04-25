@@ -1,71 +1,27 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { NodeGlobalsPolyfillPlugin } from '@esbuild-plugins/node-globals-polyfill'
-import { NodeModulesPolyfillPlugin } from '@esbuild-plugins/node-modules-polyfill'
-import rollupNodePolyFill from 'rollup-plugin-node-polyfills'
 
+// https://vite.dev/config/
 export default defineConfig({
-  define: {
-    global: 'window',
-    'process.env': {},
-    'process.platform': '"browser"',
-    'process.version': '"v18.0.0"'
-  },
   plugins: [
     react({
+      // Add these react plugin options to prevent fast refresh issues
       fastRefresh: {
-        pauseOnError: true
+        pauseOnError: true // Prevents full reload on errors
       }
     }),
     tailwindcss()
   ],
-  resolve: {
-    alias: {
-      events: 'rollup-plugin-node-polyfills/polyfills/events',
-      util: 'rollup-plugin-node-polyfills/polyfills/util',
-      stream: 'rollup-plugin-node-polyfills/polyfills/stream',
-      crypto: 'crypto-browserify',
-      buffer: 'buffer/'
-    }
-  },
-  optimizeDeps: {
-    include: [
-      'simple-peer',
-      'events',
-      'util',
-      'stream',
-      'crypto-browserify',
-      'buffer'
-    ],
-    esbuildOptions: {
-      plugins: [
-        NodeGlobalsPolyfillPlugin({
-          process: true,
-          buffer: true
-        }),
-        NodeModulesPolyfillPlugin()
-      ],
-      define: {
-        global: 'globalThis'
-      }
-    }
-  },
-  build: {
-    rollupOptions: {
-      plugins: [
-        rollupNodePolyFill()
-      ]
-    },
-    chunkSizeWarningLimit: 1600
-  },
   server: {
     watch: {
+      // Ignore JSON server file changes to prevent reloads
       ignored: ['**/db.json']
     },
     hmr: {
-      overlay: false
+      overlay: false // Disable error overlay that forces reloads
     },
+    // Proxy API requests to your JSON server
     proxy: {
       '/myteams': {
         target: 'http://localhost:3000',
@@ -73,5 +29,9 @@ export default defineConfig({
         secure: false
       }
     }
+  },
+  build: {
+    // Add chunk size warning limit
+    chunkSizeWarningLimit: 1600
   }
 })

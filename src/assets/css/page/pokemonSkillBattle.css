@@ -43,6 +43,63 @@
     text-align: center;
     flex-grow: 1;
   }
+
+  .p2p-move-selection {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 1rem;
+    z-index: 100;
+  }
+  
+  .p2p-move-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+  
+  .p2p-move-button {
+    display: flex;
+    flex-direction: column;
+    padding: 0.5rem;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  
+  .p2p-move-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  .p2p-move-button:not(:disabled):hover {
+    transform: scale(1.05);
+  }
+  
+  .p2p-move-name {
+    font-weight: bold;
+    font-size: 1.1rem;
+  }
+  
+  .p2p-move-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    margin: 0.3rem 0;
+  }
+  
+  .p2p-move-type {
+    align-self: flex-end;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    text-transform: capitalize;
+  }
   
   .back-button {
     padding: 8px 15px;

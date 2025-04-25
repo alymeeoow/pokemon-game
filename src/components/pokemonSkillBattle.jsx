@@ -482,7 +482,7 @@ const calculateDamage = (attacker, defender, move) => {
     if (newEnemyHP <= 0) {
       setBattleLog(prev => [...prev, `${enemyPokemon.name} fainted!`, `${selectedPokemon.name} wins the battle!`]);
       setBattleStatus('finished');
-      saveBattleHistory(selectedPokemon, enemyPokemon, true); // true means player won
+      saveBattleHistory(selectedPokemon, enemyPokemon, true); 
       return;
     }
   

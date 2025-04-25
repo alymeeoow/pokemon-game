@@ -455,27 +455,27 @@ font-weight: 600;
 .history-stat-bar {
   
   height: 100%;
-  transition: width 1s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, transform 0.3s ease; /* Smoother transitions */
+  transition: width 1s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, transform 0.3s ease; 
   position: relative;
   z-index: 1;
-  border-radius: inherit; /* Keep border radius consistent */
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2); /* Outer glow effect */
+  border-radius: inherit; 
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
 }
 
 .history-stat-bar.player-bar {
-  background: linear-gradient(135deg, #63b3ed, #4299e1, #2b6cb0); /* Bright, energetic gradient */
-  border: 3px solid #2b6cb0; /* Bold border to define the player bar */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2), inset 0 3px 10px rgba(0, 0, 0, 0.15); /* Outer glow + inner depth */
-  transform: scale(1.1); /* Slightly scaled for a "pushing forward" effect */
-  animation: playerBarAnimation 1s ease-in-out infinite; /* Continuous animation for added dynamic look */
+  background: linear-gradient(135deg, #63b3ed, #4299e1, #2b6cb0);
+  border: 3px solid #2b6cb0; 
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2), inset 0 3px 10px rgba(0, 0, 0, 0.15); 
+  transform: scale(1.1); 
+  animation: playerBarAnimation 1s ease-in-out infinite; 
 }
 
 .history-stat-bar.opponent-bar {
-  background: linear-gradient(135deg, #fc8181, #e53e3e, #c53030); /* Bold, contrasting red gradient */
-  border: 3px solid #9b2c2c; /* Dark red border for emphasis */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2), inset 0 3px 10px rgba(0, 0, 0, 0.15); /* Outer glow + inner depth */
-  transform: scale(1.1); /* Slightly scaled for a "pushing forward" effect */
-  animation: opponentBarAnimation 1s ease-in-out infinite; /* Continuous animation for added dynamic look */
+  background: linear-gradient(135deg, #fc8181, #e53e3e, #c53030); 
+  border: 3px solid #9b2c2c; 
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2), inset 0 3px 10px rgba(0, 0, 0, 0.15);
+  transform: scale(1.1); 
+  animation: opponentBarAnimation 1s ease-in-out infinite; 
 }
 
 @keyframes playerBarAnimation {
@@ -490,15 +490,15 @@ font-weight: 600;
   100% { transform: scale(1.05); }
 }
 
-/* Hover effect to enhance interaction */
+
 .history-stat-bar-container:hover .history-stat-bar {
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3); /* Stronger shadow on hover */
-  transform: scale(1.1); /* Slight increase on hover for both bars */
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3); 
+  transform: scale(1.1); 
 }
 
-/* Additional effect: Pulsing animation when the bar is close to full */
+
 .history-stat-bar.full-bar {
-  animation: pulsingEffect 1s ease-in-out infinite; /* Pulsing effect when full */
+  animation: pulsingEffect 1s ease-in-out infinite; 
 }
 
 @keyframes pulsingEffect {
@@ -508,19 +508,19 @@ font-weight: 600;
 }
 
 
-/* Show arrows when one stat is higher */
+
 .history-stat-row[data-advantage="player"] .history-player-stat::before,
 .history-stat-row[data-advantage="opponent"] .history-opponent-stat::before {
   opacity: 1;
 }
 
-/* Animation when stats appear */
+
 @keyframes statBarGrow {
   from { width: 0; }
   to { width: var(--final-width); }
 }
 
-/* Responsive adjustments */
+
 @media (max-width: 768px) {
   .history-stats-comparison {
     margin: 0 0.5rem 1rem;
@@ -556,7 +556,7 @@ font-weight: 600;
     height: 12px;
   }
 }
-/* Pagination */
+
 .history-pagination {
   display: flex;
   justify-content: center;
@@ -588,7 +588,7 @@ font-weight: 600;
   color: white;
 }
 
-/* Loading State */
+
 .history-loading-container {
   display: flex;
   flex-direction: column;
@@ -658,7 +658,7 @@ font-weight: 600;
   color: #2c3e50;
 }
 
-/* Empty State */
+
 .history-empty-state {
   text-align: center;
   padding: 40px;
@@ -667,7 +667,7 @@ font-weight: 600;
   color: #6c757d;
 }
 
-/* Error State */
+
 .history-error-container {
   text-align: center;
   padding: 40px;
@@ -676,7 +676,7 @@ font-weight: 600;
   color: #721c24;
 }
 
-/* Animations */
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -692,7 +692,7 @@ font-weight: 600;
   100% { transform: rotate(180deg); }
 }
 
-/* Responsive Design */
+
 @media (max-width: 768px) {
   .history-container {
     padding: 15px;

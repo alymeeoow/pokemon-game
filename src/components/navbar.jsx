@@ -21,7 +21,7 @@ const Navbar = () => {
 
         <div className={`navbar-links ${isOpen ? 'active' : ''}`}>
           <Link to="/pokedex" className={`navbar-link ${isActive('/pokedex')}`} onClick={() => setIsOpen(false)}>Pokédex</Link>
-          <Link to="/myteam" className={`navbar-link ${isActive('/myteam')}`} onClick={() => setIsOpen(false)}>My Team</Link>
+          {/* <Link to="/myteam" className={`navbar-link ${isActive('/myteam')}`} onClick={() => setIsOpen(false)}>My Team</Link> */}
 
           <div
             className="navbar-link battle-dropdown"
@@ -31,13 +31,13 @@ const Navbar = () => {
           >
             Battle
             <div className={`dropdown-menu ${isBattleOpen ? 'show' : ''}`}>
-              <Link to="/statbattle" className={`dropdown-item ${isActive('/statbattle')}`} onClick={() => setIsOpen(false)}>Stat-Battle</Link>
+              {/* <Link to="/statbattle" className={`dropdown-item ${isActive('/statbattle')}`} onClick={() => setIsOpen(false)}>Stat-Battle</Link>
               <Link to="/skillbattle" className={`dropdown-item ${isActive('/skillbattle')}`} onClick={() => setIsOpen(false)}>Skill-Battle</Link>
-              <Link to="/p2pbattle" className={`dropdown-item ${isActive('/p2pbattle')}`} onClick={() => setIsOpen(false)}>P2P Battle</Link>
+              <Link to="/p2pbattle" className={`dropdown-item ${isActive('/p2pbattle')}`} onClick={() => setIsOpen(false)}>P2P Battle</Link> */}
             </div>
           </div>
 
-          <Link to="/battleHistory" className={`navbar-link ${isActive('/battleHistory')}`} onClick={() => setIsOpen(false)}>Battle History</Link>
+          {/* <Link to="/battleHistory" className={`navbar-link ${isActive('/battleHistory')}`} onClick={() => setIsOpen(false)}>Battle History</Link> */}
         </div>
 
         <button

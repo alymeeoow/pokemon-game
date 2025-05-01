@@ -1,37 +1,52 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
-// https://vite.dev/config/
 export default defineConfig({
+  define: {
+    global: 'window',
+    'process.env': JSON.stringify({}),
+    'process': JSON.stringify({
+      env: {},
+      nextTick: '((cb) => setTimeout(cb, 0))',
+      version: '"v18.0.0"'
+    })
+  },
   plugins: [
     react({
-      // Add these react plugin options to prevent fast refresh issues
-      fastRefresh: {
-        pauseOnError: true // Prevents full reload on errors
+      babel: {
+        plugins: [
+          ['@babel/plugin-transform-runtime', {
+            regenerator: true
+          }]
+        ]
       }
     }),
     tailwindcss()
   ],
   server: {
+    host: '0.0.0.0',
+    port: 5173,
+    strictPort: true,
     watch: {
-      // Ignore JSON server file changes to prevent reloads
       ignored: ['**/db.json']
     },
     hmr: {
-      overlay: false // Disable error overlay that forces reloads
+      overlay: false
     },
-    // Proxy API requests to your JSON server
     proxy: {
       '/myteams': {
         target: 'http://localhost:3000',
         changeOrigin: true,
-        secure: false
+        secure: false,
+        rewrite: (path) => path.replace(/^\/myteams/, '')
       }
     }
   },
   build: {
-    // Add chunk size warning limit
-    chunkSizeWarningLimit: 1600
+    chunkSizeWarningLimit: 1600,
+    commonjsOptions: {
+      transformMixedEsModules: true
+    }
   }
-})
+});

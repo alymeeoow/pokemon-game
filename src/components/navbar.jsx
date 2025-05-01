@@ -6,6 +6,7 @@ import "../assets/css/page/navbar.css";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isBattleOpen, setIsBattleOpen] = useState(false);
   const location = useLocation();
 
   const isActive = (path) => location.pathname === path ? 'active-link' : '';
@@ -21,13 +22,26 @@ const Navbar = () => {
         <div className={`navbar-links ${isOpen ? 'active' : ''}`}>
           <Link to="/pokedex" className={`navbar-link ${isActive('/pokedex')}`} onClick={() => setIsOpen(false)}>Pokédex</Link>
           <Link to="/myteam" className={`navbar-link ${isActive('/myteam')}`} onClick={() => setIsOpen(false)}>My Team</Link>
-          <Link to="/statbattle" className={`navbar-link ${isActive('/statbattle')}`} onClick={() => setIsOpen(false)}>Stat-Battle</Link>
-          <Link to="/skillbattle" className={`navbar-link ${isActive('/skillbattle')}`} onClick={() => setIsOpen(false)}>Skill-Battle</Link>
+
+          <div
+            className="navbar-link battle-dropdown"
+            onMouseEnter={() => setIsBattleOpen(true)}
+            onMouseLeave={() => setIsBattleOpen(false)}
+            onClick={() => setIsBattleOpen(!isBattleOpen)}
+          >
+            Battle
+            <div className={`dropdown-menu ${isBattleOpen ? 'show' : ''}`}>
+              <Link to="/statbattle" className={`dropdown-item ${isActive('/statbattle')}`} onClick={() => setIsOpen(false)}>Stat-Battle</Link>
+              <Link to="/skillbattle" className={`dropdown-item ${isActive('/skillbattle')}`} onClick={() => setIsOpen(false)}>Skill-Battle</Link>
+              <Link to="/p2pbattle" className={`dropdown-item ${isActive('/p2pbattle')}`} onClick={() => setIsOpen(false)}>P2P Battle</Link>
+            </div>
+          </div>
+
           <Link to="/battleHistory" className={`navbar-link ${isActive('/battleHistory')}`} onClick={() => setIsOpen(false)}>Battle History</Link>
         </div>
 
-        <button 
-          className="navbar-toggle" 
+        <button
+          className="navbar-toggle"
           onClick={() => setIsOpen(!isOpen)}
           aria-label={isOpen ? "Close menu" : "Open menu"}
         >

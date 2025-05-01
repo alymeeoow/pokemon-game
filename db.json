@@ -37,77 +37,6 @@
       "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/8.png"
     },
     {
-      "id": "dc2e",
-      "pokemonId": 487,
-      "name": "giratina-altered",
-      "classification": {
-        "type": "legendary",
-        "label": "Legendary"
-      },
-      "elements": [
-        "ghost",
-        "dragon"
-      ],
-      "moves": [
-        "cut",
-        "fly",
-        "headbutt",
-        "body-slam"
-      ],
-      "weakness": [
-        "ghost",
-        "dark"
-      ],
-      "resistance": [
-        "normal",
-        "fighting"
-      ],
-      "stats": {
-        "hp": 150,
-        "attack": 100,
-        "defense": 120,
-        "spAttack": 100,
-        "spDefense": 120,
-        "speed": 90
-      },
-      "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/487.png"
-    },
-    {
-      "id": "16eb",
-      "pokemonId": 150,
-      "name": "mewtwo",
-      "classification": {
-        "type": "legendary",
-        "label": "Legendary"
-      },
-      "elements": [
-        "psychic"
-      ],
-      "moves": [
-        "mega-punch",
-        "pay-day",
-        "fire-punch",
-        "ice-punch"
-      ],
-      "weakness": [
-        "bug",
-        "ghost"
-      ],
-      "resistance": [
-        "fighting",
-        "psychic"
-      ],
-      "stats": {
-        "hp": 106,
-        "attack": 110,
-        "defense": 90,
-        "spAttack": 154,
-        "spDefense": 90,
-        "speed": 130
-      },
-      "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/150.png"
-    },
-    {
       "id": "1dfd",
       "pokemonId": 7,
       "name": "squirtle",
@@ -214,6 +143,43 @@
         "speed": 80
       },
       "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/5.png"
+    },
+    {
+      "id": "c318",
+      "pokemonId": 6,
+      "name": "charizard",
+      "classification": {
+        "type": "basic",
+        "label": "Basic",
+        "icon": null
+      },
+      "elements": [
+        "fire",
+        "flying"
+      ],
+      "moves": [
+        "mega-punch",
+        "fire-punch",
+        "thunder-punch",
+        "scratch"
+      ],
+      "weakness": [
+        "rock",
+        "ground"
+      ],
+      "resistance": [
+        "bug",
+        "grass"
+      ],
+      "stats": {
+        "hp": 78,
+        "attack": 84,
+        "defense": 78,
+        "spAttack": 109,
+        "spDefense": 85,
+        "speed": 100
+      },
+      "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png"
     }
   ],
   "battleHistory": [
@@ -630,6 +596,502 @@
       ],
       "turns": 0,
       "duration": 0
+    },
+    {
+      "id": "6whw218",
+      "type": "SkillBattle",
+      "date": "2025-04-25T01:21:54.315Z",
+      "winner": "ivysaur",
+      "loser": "squirtle",
+      "playerPokemon": {
+        "id": 7,
+        "name": "squirtle",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/7.png",
+        "types": [
+          "water"
+        ]
+      },
+      "opponentPokemon": {
+        "id": 2,
+        "name": "ivysaur",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/2.png",
+        "types": [
+          "grass",
+          "poison"
+        ]
+      }
+    },
+    {
+      "id": "xbfw",
+      "type": "StatBattle",
+      "playerPokemon": {
+        "id": 2,
+        "name": "ivysaur",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/2.png",
+        "types": [
+          "grass",
+          "poison"
+        ],
+        "stats": {
+          "hp": 60,
+          "attack": 62,
+          "defense": 63,
+          "special-attack": 80,
+          "special-defense": 80,
+          "speed": 60
+        }
+      },
+      "opponentPokemon": {
+        "id": 4,
+        "name": "charmander",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/4.png",
+        "types": [
+          "fire"
+        ],
+        "stats": {
+          "hp": 39,
+          "attack": 52,
+          "defense": 43,
+          "special-attack": 60,
+          "special-defense": 50,
+          "speed": 65
+        }
+      },
+      "result": "player",
+      "date": "2025-04-25T04:05:16.036Z",
+      "statsComparison": [
+        {
+          "stat": "HP",
+          "playerStat": 60,
+          "opponentStat": 39,
+          "advantage": "player"
+        },
+        {
+          "stat": "Attack",
+          "playerStat": 62,
+          "opponentStat": 52,
+          "advantage": "player"
+        },
+        {
+          "stat": "Defense",
+          "playerStat": 63,
+          "opponentStat": 43,
+          "advantage": "player"
+        },
+        {
+          "stat": "Sp. Atk",
+          "playerStat": 80,
+          "opponentStat": 60,
+          "advantage": "player"
+        },
+        {
+          "stat": "Sp. Def",
+          "playerStat": 80,
+          "opponentStat": 50,
+          "advantage": "player"
+        },
+        {
+          "stat": "Speed",
+          "playerStat": 60,
+          "opponentStat": 65,
+          "advantage": "opponent"
+        },
+        {
+          "stat": "Total",
+          "playerStat": 405,
+          "opponentStat": 309,
+          "advantage": "player"
+        }
+      ],
+      "turns": 0,
+      "duration": 0
+    },
+    {
+      "id": "6dvg",
+      "type": "StatBattle",
+      "playerPokemon": {
+        "id": 4,
+        "name": "charmander",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/4.png",
+        "types": [
+          "fire"
+        ],
+        "stats": {
+          "hp": 39,
+          "attack": 52,
+          "defense": 43,
+          "special-attack": 60,
+          "special-defense": 50,
+          "speed": 65
+        }
+      },
+      "opponentPokemon": {
+        "id": 2,
+        "name": "ivysaur",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/2.png",
+        "types": [
+          "grass",
+          "poison"
+        ],
+        "stats": {
+          "hp": 60,
+          "attack": 62,
+          "defense": 63,
+          "special-attack": 80,
+          "special-defense": 80,
+          "speed": 60
+        }
+      },
+      "result": "opponent",
+      "date": "2025-04-25T04:05:16.086Z",
+      "statsComparison": [
+        {
+          "stat": "HP",
+          "playerStat": 39,
+          "opponentStat": 60,
+          "advantage": "opponent"
+        },
+        {
+          "stat": "Attack",
+          "playerStat": 52,
+          "opponentStat": 62,
+          "advantage": "opponent"
+        },
+        {
+          "stat": "Defense",
+          "playerStat": 43,
+          "opponentStat": 63,
+          "advantage": "opponent"
+        },
+        {
+          "stat": "Sp. Atk",
+          "playerStat": 60,
+          "opponentStat": 80,
+          "advantage": "opponent"
+        },
+        {
+          "stat": "Sp. Def",
+          "playerStat": 50,
+          "opponentStat": 80,
+          "advantage": "opponent"
+        },
+        {
+          "stat": "Speed",
+          "playerStat": 65,
+          "opponentStat": 60,
+          "advantage": "player"
+        },
+        {
+          "stat": "Total",
+          "playerStat": 309,
+          "opponentStat": 405,
+          "advantage": "opponent"
+        }
+      ],
+      "turns": 0,
+      "duration": 0
+    },
+    {
+      "id": "dyem",
+      "type": "StatBattle",
+      "playerPokemon": {
+        "id": 7,
+        "name": "squirtle",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/7.png",
+        "types": [
+          "water"
+        ],
+        "stats": {
+          "hp": 44,
+          "attack": 48,
+          "defense": 65,
+          "special-attack": 50,
+          "special-defense": 64,
+          "speed": 43
+        }
+      },
+      "opponentPokemon": {
+        "id": 5,
+        "name": "charmeleon",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/5.png",
+        "types": [
+          "fire"
+        ],
+        "stats": {
+          "hp": 58,
+          "attack": 64,
+          "defense": 58,
+          "special-attack": 80,
+          "special-defense": 65,
+          "speed": 80
+        }
+      },
+      "result": "opponent",
+      "date": "2025-04-25T05:10:52.614Z",
+      "statsComparison": [
+        {
+          "stat": "HP",
+          "playerStat": 44,
+          "opponentStat": 58,
+          "advantage": "opponent"
+        },
+        {
+          "stat": "Attack",
+          "playerStat": 48,
+          "opponentStat": 64,
+          "advantage": "opponent"
+        },
+        {
+          "stat": "Defense",
+          "playerStat": 65,
+          "opponentStat": 58,
+          "advantage": "player"
+        },
+        {
+          "stat": "Sp. Atk",
+          "playerStat": 50,
+          "opponentStat": 80,
+          "advantage": "opponent"
+        },
+        {
+          "stat": "Sp. Def",
+          "playerStat": 64,
+          "opponentStat": 65,
+          "advantage": "opponent"
+        },
+        {
+          "stat": "Speed",
+          "playerStat": 43,
+          "opponentStat": 80,
+          "advantage": "opponent"
+        },
+        {
+          "stat": "Total",
+          "playerStat": 314,
+          "opponentStat": 405,
+          "advantage": "opponent"
+        }
+      ],
+      "turns": 0,
+      "duration": 0
+    },
+    {
+      "id": "3n3f",
+      "type": "StatBattle",
+      "playerPokemon": {
+        "id": 6,
+        "name": "charizard",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png",
+        "types": [
+          "fire",
+          "flying"
+        ],
+        "stats": {
+          "hp": 78,
+          "attack": 84,
+          "defense": 78,
+          "special-attack": 109,
+          "special-defense": 85,
+          "speed": 100
+        }
+      },
+      "opponentPokemon": {
+        "id": 5,
+        "name": "charmeleon",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/5.png",
+        "types": [
+          "fire"
+        ],
+        "stats": {
+          "hp": 58,
+          "attack": 64,
+          "defense": 58,
+          "special-attack": 80,
+          "special-defense": 65,
+          "speed": 80
+        }
+      },
+      "result": "player",
+      "date": "2025-04-25T05:10:57.459Z",
+      "statsComparison": [
+        {
+          "stat": "HP",
+          "playerStat": 78,
+          "opponentStat": 58,
+          "advantage": "player"
+        },
+        {
+          "stat": "Attack",
+          "playerStat": 84,
+          "opponentStat": 64,
+          "advantage": "player"
+        },
+        {
+          "stat": "Defense",
+          "playerStat": 78,
+          "opponentStat": 58,
+          "advantage": "player"
+        },
+        {
+          "stat": "Sp. Atk",
+          "playerStat": 109,
+          "opponentStat": 80,
+          "advantage": "player"
+        },
+        {
+          "stat": "Sp. Def",
+          "playerStat": 85,
+          "opponentStat": 65,
+          "advantage": "player"
+        },
+        {
+          "stat": "Speed",
+          "playerStat": 100,
+          "opponentStat": 80,
+          "advantage": "player"
+        },
+        {
+          "stat": "Total",
+          "playerStat": 534,
+          "opponentStat": 405,
+          "advantage": "player"
+        }
+      ],
+      "turns": 0,
+      "duration": 0
+    },
+    {
+      "id": "zd62",
+      "type": "StatBattle",
+      "playerPokemon": {
+        "id": 6,
+        "name": "charizard",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png",
+        "types": [
+          "fire",
+          "flying"
+        ],
+        "stats": {
+          "hp": 78,
+          "attack": 84,
+          "defense": 78,
+          "special-attack": 109,
+          "special-defense": 85,
+          "speed": 100
+        }
+      },
+      "opponentPokemon": {
+        "id": 8,
+        "name": "wartortle",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/8.png",
+        "types": [
+          "water"
+        ],
+        "stats": {
+          "hp": 59,
+          "attack": 63,
+          "defense": 80,
+          "special-attack": 65,
+          "special-defense": 80,
+          "speed": 58
+        }
+      },
+      "result": "player",
+      "date": "2025-04-25T05:11:01.152Z",
+      "statsComparison": [
+        {
+          "stat": "HP",
+          "playerStat": 78,
+          "opponentStat": 59,
+          "advantage": "player"
+        },
+        {
+          "stat": "Attack",
+          "playerStat": 84,
+          "opponentStat": 63,
+          "advantage": "player"
+        },
+        {
+          "stat": "Defense",
+          "playerStat": 78,
+          "opponentStat": 80,
+          "advantage": "opponent"
+        },
+        {
+          "stat": "Sp. Atk",
+          "playerStat": 109,
+          "opponentStat": 65,
+          "advantage": "player"
+        },
+        {
+          "stat": "Sp. Def",
+          "playerStat": 85,
+          "opponentStat": 80,
+          "advantage": "player"
+        },
+        {
+          "stat": "Speed",
+          "playerStat": 100,
+          "opponentStat": 58,
+          "advantage": "player"
+        },
+        {
+          "stat": "Total",
+          "playerStat": 534,
+          "opponentStat": 405,
+          "advantage": "player"
+        }
+      ],
+      "turns": 0,
+      "duration": 0
+    },
+    {
+      "id": "egrfifp",
+      "type": "SkillBattle",
+      "date": "2025-04-25T05:11:15.368Z",
+      "winner": "charizard",
+      "loser": "ekans",
+      "playerPokemon": {
+        "id": 6,
+        "name": "charizard",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/6.png",
+        "types": [
+          "fire",
+          "flying"
+        ]
+      },
+      "opponentPokemon": {
+        "id": 23,
+        "name": "ekans",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/23.png",
+        "types": [
+          "poison"
+        ]
+      }
+    },
+    {
+      "id": "mj1abdo",
+      "type": "SkillBattle",
+      "date": "2025-04-25T05:11:25.621Z",
+      "winner": "charmeleon",
+      "loser": "venusaur",
+      "playerPokemon": {
+        "id": 5,
+        "name": "charmeleon",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/5.png",
+        "types": [
+          "fire"
+        ]
+      },
+      "opponentPokemon": {
+        "id": 3,
+        "name": "venusaur",
+        "sprite": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/3.png",
+        "types": [
+          "grass",
+          "poison"
+        ]
+      }
     }
   ]
 }

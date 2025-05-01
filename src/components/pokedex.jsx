@@ -18,6 +18,7 @@ const Pokedex = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [selectedPokemon, setSelectedPokemon] = useState(null);
   const pokemonPerPage = 30;
+  
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 const [successMessage, setSuccessMessage] = useState('');
 
@@ -135,6 +136,7 @@ const [successMessage, setSuccessMessage] = useState('');
       console.error("Failed to enhance Pokémon details:", error);
       return pokemon;
     }
+    
   }, []);
 
   const addToTeam = async (pokemon, e) => {
@@ -218,7 +220,7 @@ const [successMessage, setSuccessMessage] = useState('');
   
   
 
-// Add this useEffect to load team from server on component mount
+
 useEffect(() => {
   const fetchTeam = async () => {
     try {
@@ -508,7 +510,7 @@ useEffect(() => {
 
         
 
-        <div className="pokedex-grid">
+       <div className="pokedex-grid">
           {displayedPokemon.length > 0 ? (
             displayedPokemon.map((pokemon) => {
               const isInTeam = team.some(p => p.pokemonId === pokemon.id);
@@ -543,7 +545,7 @@ useEffect(() => {
        '/path/to/local/fallback.png'}
   alt={pokemon.name}
   className="pokemon-image"
-  loading="lazy"
+  loading="lazy" 
 />
                   </div>
                   <div className="card-body">

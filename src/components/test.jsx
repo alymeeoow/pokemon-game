@@ -1,152 +1,80 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { FaArrowLeft, FaSearch, FaChevronLeft, FaChevronRight, FaHeart, FaBolt, FaShieldAlt } from "react-icons/fa";
-import { GiSwordWound, GiSwordman } from "react-icons/gi";
+import React, { useState, useEffect, useRef ,useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { FaArrowLeft, FaLink, FaQrcode, FaCopy } from 'react-icons/fa';
 
-import "../assets/css/page/pokemonSkillBattle.css";
-import Navbar from "./navbar";
+import { FaSearch, FaTimes, FaHeartBroken, FaShieldAlt } from "react-icons/fa";
+import { GiBroadsword } from "react-icons/gi";
+import { QRCodeSVG } from 'qrcode.react';
+import Pokeball from "../assets/images/pokeballs.svg";
+import { v4 as uuidv4 } from 'uuid';
+import io from 'socket.io-client';
 
-const PokemonSkillBattle = () => {
-  // State management
-  const [team, setTeam] = useState([]);
-  const [loading, setLoading] = useState(true);
+import "../assets/css/page/pokemonP2pBattle.css"
+import Navbar from './navbar';
+
+const SOCKET_SERVER_URL = 'http://192.168.1.133:3001';
+
+
+const PokemonP2PBattle = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const MAX_POKEMON = 1000;
+  const POKEMONS_PER_PAGE = 30;
+  // Battle state
   const [selectedPokemon, setSelectedPokemon] = useState(null);
   const [enemyPokemon, setEnemyPokemon] = useState(null);
   const [battleLog, setBattleLog] = useState([]);
-  const [battleStatus, setBattleStatus] = useState('selecting'); // 'selecting', 'battling', 'finished'
+  const [battleStatus, setBattleStatus] = useState('connecting');
   const [currentTurn, setCurrentTurn] = useState(null);
   const [playerHP, setPlayerHP] = useState(0);
+  const [types, setTypes] = useState([]);
   const [enemyHP, setEnemyHP] = useState(0);
-  const [showOpponentSelector, setShowOpponentSelector] = useState(false);
-  const [basicOpponents, setBasicOpponents] = useState([]);
-  const [enhancedOpponents, setEnhancedOpponents] = useState(new Map());
+  const [totalPages, setTotalPages] = useState(1);
+  const [pokemonList, setPokemonList] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("all");
-  const [types, setTypes] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  
-  // Constants
-  const POKEMONS_PER_PAGE = 30;
-  const MAX_POKEMON = 1000;
+  const [basicOpponents, setBasicOpponents] = useState([]);
+  const [enhancedOpponents, setEnhancedOpponents] = useState(new Map());
+  // Multiplayer state
+  const [battleId, setBattleId] = useState('');
+  const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const [isHost, setIsHost] = useState(false);
+  const [invitationLink, setInvitationLink] = useState('');
+  const [showInvitationModal, setShowInvitationModal] = useState(false);
+  const [remotePokemonSelected, setRemotePokemonSelected] = useState(false);
+  const [waitingForOpponent, setWaitingForOpponent] = useState(false);
 
-  // Type effectiveness chart (simplified)
-  const typeEffectiveness = {
-    normal: { rock: 0.5, ghost: 0, steel: 0.5 },
-    fire: { fire: 0.5, water: 0.5, grass: 2, ice: 2, bug: 2, rock: 0.5, dragon: 0.5, steel: 2 },
-    water: { fire: 2, water: 0.5, grass: 0.5, ground: 2, rock: 2, dragon: 0.5 },
-    electric: { water: 2, electric: 0.5, grass: 0.5, ground: 0, flying: 2, dragon: 0.5 },
-    grass: { fire: 0.5, water: 2, grass: 0.5, poison: 0.5, ground: 2, flying: 0.5, bug: 0.5, rock: 2, dragon: 0.5, steel: 0.5 },
-    ice: { fire: 0.5, water: 0.5, grass: 2, ice: 0.5, ground: 2, flying: 2, dragon: 2, steel: 0.5 },
-    fighting: { normal: 2, ice: 2, poison: 0.5, flying: 0.5, psychic: 0.5, bug: 0.5, rock: 2, ghost: 0, dark: 2, steel: 2, fairy: 0.5 },
-    poison: { grass: 2, poison: 0.5, ground: 0.5, rock: 0.5, ghost: 0.5, steel: 0, fairy: 2 },
-    ground: { fire: 2, electric: 2, grass: 0.5, poison: 2, flying: 0, bug: 0.5, rock: 2, steel: 2 },
-    flying: { electric: 0.5, grass: 2, fighting: 2, bug: 2, rock: 0.5, steel: 0.5 },
-    psychic: { fighting: 2, poison: 2, psychic: 0.5, dark: 0, steel: 0.5 },
-    bug: { fire: 0.5, grass: 2, fighting: 0.5, poison: 0.5, flying: 0.5, psychic: 2, ghost: 0.5, dark: 2, steel: 0.5, fairy: 0.5 },
-    rock: { fire: 2, ice: 2, fighting: 0.5, ground: 0.5, flying: 2, bug: 2, steel: 0.5 },
-    ghost: { normal: 0, psychic: 2, ghost: 2, dark: 0.5 },
-    dragon: { dragon: 2, steel: 0.5, fairy: 0 },
-    dark: { fighting: 0.5, psychic: 2, ghost: 2, dark: 0.5, fairy: 0.5 },
-    steel: { fire: 0.5, water: 0.5, electric: 0.5, ice: 2, rock: 2, steel: 0.5, fairy: 2 },
-    fairy: { fire: 0.5, fighting: 2, poison: 0.5, dragon: 2, dark: 2, steel: 0.5 }
+  const getPokemonClassification = (id) => {
+    if (legendaryPokemon.has(id) && mythicalPokemon.has(id)) return { type: "mythical", label: "Mythical" };
+    if (legendaryPokemon.has(id)) return { type: "legendary", label: "Legendary" };
+    if (mythicalPokemon.has(id)) return { type: "mythical", label: "Mythical" };
+    if (ultraBeasts.has(id)) return { type: "ultra", label: "Ultra Beast" };
+    return { type: "basic", label: "Basic", icon: null };
+
+
   };
 
-  // Fetch types
-  const fetchTypes = useCallback(async () => {
-    try {
-      const response = await fetch("https://pokeapi.co/api/v2/type");
-      const data = await response.json();
-      setTypes(data.results.filter(type => type.name !== "unknown" && type.name !== "shadow"));
-    } catch (error) {
-      console.error("Failed to fetch Pokémon types:", error);
-    }
-  }, []);
+  const legendaryPokemon = new Set([
+    144, 145, 146, 150, 243, 244, 245, 249, 250, 377, 378, 379, 
+    380, 381, 382, 383, 384, 480, 481, 482, 483, 484, 485, 486, 
+    487, 488, 638, 639, 640, 641, 642, 645, 643, 644, 646, 772, 
+    773, 785, 786, 787, 788, 888, 889, 890
+  ]);
 
-  // Fetch team with enhanced details
-  useEffect(() => {
-    const fetchTeam = async () => {
-      try {
-        const response = await fetch('http://localhost:3000/myteams');
-        if (!response.ok) throw new Error('Failed to fetch team');
-        const data = await response.json();
-        
-        const detailedTeam = await Promise.all(
-          data.map(async (teamMember) => {
-            try {
-              const pokemonResponse = await fetch(`https://pokeapi.co/api/v2/pokemon/${teamMember.pokemonId}`);
-              const pokemonData = await pokemonResponse.json();
-              
-              // Get moves with type information (limit to 4 moves)
-              const movesWithTypes = await Promise.all(
-                (teamMember.moves || []).slice(0, 4).map(async moveName => {
-                  try {
-                    const moveResponse = await fetch(`https://pokeapi.co/api/v2/move/${moveName}`);
-                    const moveData = await moveResponse.json();
-                    return {
-                      name: moveName,
-                      type: moveData.type.name,
-                      power: moveData.power || 60, // Default to 60 if no power
-                      accuracy: moveData.accuracy || 100, // Default to 100% if no accuracy
-                      damage_class: moveData.damage_class?.name || 'physical' // Default to physical
-                    };
-                  } catch {
-                    return {
-                      name: moveName,
-                      type: 'normal',
-                      power: 60,
-                      accuracy: 100,
-                      damage_class: 'physical'
-                    };
-                  }
-                })
-              );
-              
-              return {
-                ...pokemonData,
-                ...teamMember,
-                id: teamMember.pokemonId,
-                stats: [
-                  { stat: { name: 'hp' }, base_stat: teamMember.stats.hp },
-                  { stat: { name: 'attack' }, base_stat: teamMember.stats.attack },
-                  { stat: { name: 'defense' }, base_stat: teamMember.stats.defense },
-                  { stat: { name: 'special-attack' }, base_stat: teamMember.stats.spAttack },
-                  { stat: { name: 'special-defense' }, base_stat: teamMember.stats.spDefense },
-                  { stat: { name: 'speed' }, base_stat: teamMember.stats.speed }
-                ],
-                types: teamMember.elements.map(type => ({
-                  type: { name: type }
-                })),
-                sprites: {
-                  other: {
-                    "official-artwork": {
-                      front_default: teamMember.sprite || pokemonData.sprites.other["official-artwork"].front_default
-                    }
-                  }
-                },
-                attacks: movesWithTypes,
-                weakness: teamMember.weakness || [],
-                resistance: teamMember.resistance || []
-              };
-            } catch (error) {
-              console.error(`Failed to process Pokémon ${teamMember.pokemonId}:`, error);
-              return null;
-            }
-          })
-        );
-        
-        setTeam(detailedTeam.filter(p => p !== null));
-        setLoading(false);
-      } catch (error) {
-        console.error("Failed to fetch team:", error);
-        setLoading(false);
-      }
-    };
-  
-    fetchTeam();
-    fetchTypes();
-  }, [fetchTypes]);
+  const mythicalPokemon = new Set([
+    151, 251, 385, 386, 489, 490, 491, 492, 493, 494, 647, 648, 
+    649, 719, 720, 721, 801, 802, 807, 808, 809, 893, 898, 1000
+  ]);
 
-  // Load basic opponent list (names/IDs only)
+  const ultraBeasts = new Set([
+    793, 794, 795, 796, 797, 798, 799, 803, 804, 805, 806
+  ]);
+
+
   const fetchBasicOpponents = useCallback(async () => {
     if (basicOpponents.length > 0) return;
 
@@ -159,6 +87,7 @@ const PokemonSkillBattle = () => {
         id: index + 1,
         name: p.name,
         url: p.url,
+        classification: getPokemonClassification(index + 1),
         loaded: false
       }));
 
@@ -166,7 +95,7 @@ const PokemonSkillBattle = () => {
       setFilteredOpponents(basicList);
       setTotalPages(Math.ceil(basicList.length / POKEMONS_PER_PAGE));
       
-      // Pre-load first few pages in background
+     
       const preloadPages = 3;
       const preloadCount = preloadPages * POKEMONS_PER_PAGE;
       const toPreload = basicList.slice(0, preloadCount);
@@ -185,7 +114,38 @@ const PokemonSkillBattle = () => {
     }
   }, [basicOpponents.length]);
 
-  // Enhance individual Pokémon details when needed
+  
+  const handleOpponentSelection = async (pokemon) => {
+    const enhanced = await enhancePokemonDetails(pokemon);
+    setEnemyPokemon(enhanced);
+    setShowOpponentSelector(false);
+    
+
+    const playerMaxHP = selectedPokemon.stats.find(s => s.stat.name === 'hp').base_stat;
+    const enemyMaxHP = enhanced.stats.find(s => s.stat.name === 'hp').base_stat;
+    
+    setPlayerHP(playerMaxHP);
+    setEnemyHP(enemyMaxHP);
+    setBattleLog([`Battle started between ${selectedPokemon.name} and ${enhanced.name}!`]);
+    setBattleStatus('battling');
+    
+
+    const playerSpeed = selectedPokemon.stats.find(s => s.stat.name === 'speed').base_stat;
+    const enemySpeed = enhanced.stats.find(s => s.stat.name === 'speed').base_stat;
+    
+    if (playerSpeed >= enemySpeed) {
+      setCurrentTurn('player');
+      setBattleLog(prev => [...prev, `${selectedPokemon.name} is faster and will attack first!`]);
+    } else {
+      setCurrentTurn('opponent');
+      setBattleLog(prev => [...prev, `${enhanced.name} is faster and will attack first!`]);
+   
+      setTimeout(opponentMove, 1000);
+    }
+  };
+
+
+ 
   const enhancePokemonDetails = useCallback(async (pokemon) => {
     if (enhancedOpponents.has(pokemon.id)) {
       return enhancedOpponents.get(pokemon.id);
@@ -195,7 +155,7 @@ const PokemonSkillBattle = () => {
       const response = await fetch(pokemon.url);
       const pokemonData = await response.json();
       
-      // Get 4 random moves with type information
+    
       const allMoves = pokemonData.moves.map(m => m.move.name);
       const selectedMoves = getRandomMoves(allMoves, 4);
       
@@ -207,9 +167,9 @@ const PokemonSkillBattle = () => {
             return {
               name: moveName,
               type: moveData.type.name,
-              power: moveData.power || 60, // Default to 60 if no power
-              accuracy: moveData.accuracy || 100, // Default to 100% if no accuracy
-              damage_class: moveData.damage_class?.name || 'physical' // Default to physical
+              power: moveData.power || 60, 
+              accuracy: moveData.accuracy || 100,
+              damage_class: moveData.damage_class?.name || 'physical' 
             };
           } catch {
             return {
@@ -225,7 +185,8 @@ const PokemonSkillBattle = () => {
       
       const enhanced = {
         ...pokemon,
-        ...pokemonData, // Spread the full details
+        ...pokemonData,
+        classification: pokemon.classification,
         stats: pokemonData.stats || [
           { stat: { name: 'hp' }, base_stat: 0 },
           { stat: { name: 'attack' }, base_stat: 0 },
@@ -241,7 +202,7 @@ const PokemonSkillBattle = () => {
       return enhanced;
     } catch (error) {
       console.error(`Failed to enhance Pokémon ${pokemon.id}:`, error);
-      // Return a fallback with basic stats
+   
       return {
         ...pokemon,
         stats: [
@@ -263,13 +224,80 @@ const PokemonSkillBattle = () => {
     }
   }, [enhancedOpponents]);
 
-  // Helper to get random moves
-  const getRandomMoves = (moves, count) => {
-    const shuffled = [...moves].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, count);
+
+
+  // Refs
+  const socketRef = useRef(null);
+  const battleLogRef = useRef(null);
+  const playerIdRef = useRef(uuidv4());
+
+  // Type colors and effectiveness
+  const typeColors = {
+    normal: "#A8A878", fire: "#F08030", water: "#6890F0", electric: "#F8D030",
+    grass: "#78C850", ice: "#98D8D8", fighting: "#C03028", poison: "#A040A0",
+    ground: "#E0C068", flying: "#A890F0", psychic: "#F85888", bug: "#A8B820",
+    rock: "#B8A038", ghost: "#705898", dragon: "#7038F8", dark: "#705848",
+    steel: "#B8B8D0", fairy: "#EE99AC"
   };
 
-  // Filter opponents based on search and type
+  const typeEffectiveness = {
+    normal: { rock: 0.5, ghost: 0, steel: 0.5 },
+    fire: { fire: 0.5, water: 0.5, grass: 2, ice: 2, bug: 2, rock: 0.5, dragon: 0.5, steel: 2 },
+    water: { fire: 2, water: 0.5, grass: 0.5, ground: 2, rock: 2, dragon: 0.5 },
+    electric: { water: 2, electric: 0.5, grass: 0.5, ground: 0, flying: 2, dragon: 0.5 },
+    grass: { fire: 0.5, water: 2, grass: 0.5, poison: 0.5, ground: 2, flying: 0.5, bug: 0.5, rock: 2, dragon: 0.5, steel: 0.5 },
+    ice: { fire: 0.5, water: 0.5, grass: 2, ice: 0.5, ground: 2, flying: 2, dragon: 2, steel: 0.5 },
+    fighting: { normal: 2, ice: 2, poison: 0.5, flying: 0.5, psychic: 0.5, bug: 0.5, rock: 2, ghost: 0, dark: 2, steel: 2, fairy: 0.5 },
+    poison: { grass: 2, poison: 0.5, ground: 0.5, rock: 0.5, ghost: 0.5, steel: 0, fairy: 2 },
+    ground: { fire: 2, electric: 2, grass: 0.5, poison: 2, flying: 0, bug: 0.5, rock: 2, steel: 2 },
+    flying: { electric: 0.5, grass: 2, fighting: 2, bug: 2, rock: 0.5, steel: 0.5 },
+    psychic: { fighting: 2, poison: 2, psychic: 0.5, dark: 0, steel: 0.5 },
+    bug: { fire: 0.5, grass: 2, fighting: 0.5, poison: 0.5, flying: 0.5, psychic: 2, ghost: 0.5, dark: 2, steel: 0.5, fairy: 0.5 },
+    rock: { fire: 2, ice: 2, fighting: 0.5, ground: 0.5, flying: 2, bug: 2, steel: 0.5 },
+    ghost: { normal: 0, psychic: 2, ghost: 2, dark: 0.5 },
+    dragon: { dragon: 2, steel: 0.5, fairy: 0 },
+    dark: { fighting: 0.5, psychic: 2, ghost: 2, dark: 0.5, fairy: 0.5 },
+    steel: { fire: 0.5, water: 0.5, electric: 0.5, ice: 2, rock: 2, steel: 0.5, fairy: 2 },
+    fairy: { fire: 0.5, fighting: 2, poison: 0.5, dragon: 2, dark: 2, steel: 0.5 }
+  };
+
+  useEffect(() => {
+    const fetchPokemonList = async () => {
+      try {
+        const response = await fetch(`https://pokeapi.co/api/v2/pokemon?limit=${MAX_POKEMON}`);
+        const data = await response.json();
+        setPokemonList(data.results.map((p, i) => ({
+          id: i + 1,
+          name: p.name,
+          url: p.url
+        })));
+        setLoading(false);
+      } catch (error) {
+        console.error("Failed to fetch Pokémon list:", error);
+        setLoading(false);
+      }
+    };
+  
+
+    fetchPokemonList();
+    fetchBasicOpponents(); // Add this line
+}, [fetchBasicOpponents]); // Add the dependency
+
+const getRandomMoves = (moves, count) => {
+    const shuffled = [...moves].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, count)
+  };
+
+  const fetchTypes = useCallback(async () => {
+    try {
+      const response = await fetch("https://pokeapi.co/api/v2/type");
+      const data = await response.json();
+      setTypes(data.results.filter(type => type.name !== "unknown" && type.name !== "shadow"));
+    } catch (error) {
+      console.error("Failed to fetch Pokémon types:", error);
+    }
+  }, []);
+
   const [filteredOpponents, setFilteredOpponents] = useState([]);
   useEffect(() => {
     if (basicOpponents.length === 0) return;
@@ -277,7 +305,7 @@ const PokemonSkillBattle = () => {
     const filtered = basicOpponents.filter(pokemon => {
       const matchesSearch = pokemon.name.toLowerCase().includes(searchTerm.toLowerCase());
       
-      // For unenhanced Pokémon, we can't filter by type yet
+   
       let matchesType = selectedType === "all";
       if (enhancedOpponents.has(pokemon.id)) {
         const enhanced = enhancedOpponents.get(pokemon.id);
@@ -290,10 +318,8 @@ const PokemonSkillBattle = () => {
 
     setFilteredOpponents(filtered);
     setTotalPages(Math.ceil(filtered.length / POKEMONS_PER_PAGE));
-    setCurrentPage(1); // Reset to first page when filters change
+    setCurrentPage(1); 
   }, [searchTerm, selectedType, basicOpponents, enhancedOpponents]);
-
-  // Get paginated opponents with enhanced data where available
   const getPaginatedOpponents = useCallback(() => {
     const startIndex = (currentPage - 1) * POKEMONS_PER_PAGE;
     const endIndex = startIndex + POKEMONS_PER_PAGE;
@@ -308,206 +334,420 @@ const PokemonSkillBattle = () => {
     setCurrentPage(newPage);
   };
 
-  // Start battle with selected Pokémon
-  const startBattle = (pokemon) => {
-    setSelectedPokemon(pokemon);
-    setShowOpponentSelector(true);
-    fetchBasicOpponents();
+
+ const fetchPokemonDetails = async (pokemon) => {
+  try {
+    const response = await fetch(pokemon.url || `https://pokeapi.co/api/v2/pokemon/${pokemon.id}`);
+    const data = await response.json();
+
+    // Get 4 random moves that have power (filter out status moves)
+    const movesWithPower = data.moves.filter(move => {
+      return move.version_group_details[0].move_learn_method.name === 'level-up';
+    });
+
+    // Select 4 random moves
+    const selectedMoves = movesWithPower
+      .sort(() => 0.5 - Math.random())
+      .slice(0, 4);
+
+    // Fetch details for each move
+    const moves = await Promise.all(
+      selectedMoves.map(async moveItem => {
+        const moveResponse = await fetch(moveItem.move.url);
+        const moveData = await moveResponse.json();
+        
+        return {
+          name: moveData.name.replace(/-/g, ' '),
+          type: moveData.type.name,
+          power: moveData.power || 40, // Default to 40 if no power
+          accuracy: moveData.accuracy,
+          pp: moveData.pp
+        };
+      })
+    );
+
+    fetchTypes();
+
+    return {
+      ...data,
+      id: pokemon.id || data.id,
+      name: pokemon.name || data.name,
+      stats: data.stats,
+      types: data.types,
+      sprites: data.sprites,
+      moves
+    };
+  } catch (error) {
+    console.error("Failed to fetch Pokémon details:", error);
+    return null;
+  }
+
+};
+
+
+
+
+  useEffect(() => {
+    const battleIdParam = searchParams.get('battleId');
+    
+    socketRef.current = io(SOCKET_SERVER_URL, {
+      withCredentials: true,
+      autoConnect: false,
+      query: { playerId: playerIdRef.current },
+      transports: ['websocket'],
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      withCredentials: true  // This is crucial for CORS
+    });
+
+    const socket = socketRef.current;
+
+    socket.on('connect', () => {
+      console.log('Connected to Socket.io server');
+      setConnectionStatus('connected');
+      
+      if (!battleIdParam) {
+        setWaitingForOpponent(true);
+      }
+    });
+    
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected from Socket.io server');
+      setConnectionStatus('disconnected');
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket.io connection error:', error);
+      setConnectionStatus('error');
+    });
+
+    socket.on('player_connected', () => {
+      setConnectionStatus('connected');
+      if (isHost) {
+        setBattleLog(prev => [...prev, 'Opponent connected!']);
+      }
+      setWaitingForOpponent(false);
+    });
+
+    socket.on('pokemon_selected', (pokemon) => {
+      setEnemyPokemon(pokemon);
+      setRemotePokemonSelected(true);
+      if (selectedPokemon) {
+        
+        startBattle(selectedPokemon, pokemon);
+   
+        
+      }
+    });
+
+    socket.on('move', (move) => {
+      opponentMove(move);
+    });
+
+    socket.on('battle_state', (state) => {
+      syncBattleState(state);
+    });
+
+    socket.on('error', (error) => {
+      console.error('Server error:', error);
+      setConnectionStatus('error');
+    });
+
+    socket.on('room_created', (roomId) => {
+      setBattleId(roomId);
+      setIsHost(true);
+      setConnectionStatus('waiting');
+      const link = `${window.location.origin}${window.location.pathname}?battleId=${roomId}`;
+      setInvitationLink(link);
+    });
+
+    socket.on('room_joined', (roomId) => {
+      setBattleId(roomId);
+      setIsHost(false);
+      setConnectionStatus('connected');
+      setBattleStatus('selecting');
+      setWaitingForOpponent(false);
+    });
+
+    socket.on('room_full', () => {
+      alert('This battle room is already full!');
+      navigate('/pokemon-battle');
+    });
+
+    socket.connect();
+
+    if (battleIdParam) {
+      socket.emit('join_room', battleIdParam);
+    } else {
+      socket.emit('create_room');
+    }
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (battleLogRef.current) {
+      battleLogRef.current.scrollTop = battleLogRef.current.scrollHeight;
+    }
+  }, [battleLog]);
+
+  const selectPokemon = async (pokemon) => {
+    const detailedPokemon = await fetchPokemonDetails(pokemon);
+    if (!detailedPokemon) return;
+
+    setSelectedPokemon(detailedPokemon);
+    socketRef.current.emit('pokemon_selected', {
+      room: battleId,
+      pokemon: detailedPokemon
+    });
+
+    if (remotePokemonSelected) {
+      startBattle(detailedPokemon, enemyPokemon);
+    }
   };
 
-  // Select opponent and initialize battle
-  const handleOpponentSelection = async (pokemon) => {
-    const enhanced = await enhancePokemonDetails(pokemon);
-    setEnemyPokemon(enhanced);
-    setShowOpponentSelector(false);
-    
-    // Initialize battle state
-    const playerMaxHP = selectedPokemon.stats.find(s => s.stat.name === 'hp').base_stat;
-    const enemyMaxHP = enhanced.stats.find(s => s.stat.name === 'hp').base_stat;
+  const startBattle = (playerPokemon, opponentPokemon) => {
+    setBattleStatus('battling'); // Fixed typo from 'battling' to 'battling'
+  
+    const playerMaxHP = playerPokemon.stats.find(s => s.stat.name === 'hp').base_stat;
+    const enemyMaxHP = opponentPokemon.stats.find(s => s.stat.name === 'hp').base_stat;
     
     setPlayerHP(playerMaxHP);
     setEnemyHP(enemyMaxHP);
-    setBattleLog([`Battle started between ${selectedPokemon.name} and ${enhanced.name}!`]);
-    setBattleStatus('battling');
+    fetchBasicOpponents();
+    const initialLog = [
+      `Battle started between ${playerPokemon.name} and ${opponentPokemon.name}!`
+    ];
+    setBattleLog(initialLog);
     
-    // Determine who goes first based on speed
-    const playerSpeed = selectedPokemon.stats.find(s => s.stat.name === 'speed').base_stat;
-    const enemySpeed = enhanced.stats.find(s => s.stat.name === 'speed').base_stat;
+    const playerSpeed = playerPokemon.stats.find(s => s.stat.name === 'speed').base_stat;
+    const enemySpeed = opponentPokemon.stats.find(s => s.stat.name === 'speed').base_stat;
     
-    if (playerSpeed >= enemySpeed) {
-      setCurrentTurn('player');
-      setBattleLog(prev => [...prev, `${selectedPokemon.name} is faster and will attack first!`]);
+    // Simplified turn determination - don't mix host status with speed
+    let firstTurn;
+    if (playerSpeed > enemySpeed) {
+      firstTurn = 'player';
+    } else if (enemySpeed > playerSpeed) {
+      firstTurn = 'opponent';
     } else {
-      setCurrentTurn('opponent');
-      setBattleLog(prev => [...prev, `${enhanced.name} is faster and will attack first!`]);
-      // Start opponent's turn immediately
-      setTimeout(opponentMove, 1000);
+      // If speeds are equal, host goes first
+      firstTurn = isHost ? 'player' : 'opponent';
     }
+    
+    setCurrentTurn(firstTurn);
+    const turnMessage = firstTurn === 'player' 
+      ? `${playerPokemon.name} is faster and will attack first!` 
+      : `${opponentPokemon.name} is faster and will attack first!`;
+    
+    setBattleLog(prev => [...prev, turnMessage]);
+    
+    // Send complete battle state to opponent
+    sendBattleState(
+      [...initialLog, turnMessage],
+      playerMaxHP,
+      enemyMaxHP,
+      firstTurn,
+      'battling'
+    );
+
   };
 
-  // Calculate damage based on move, attacker, and defender
-  const calculateDamage = (attacker, defender, move) => {
-    // Get relevant stats
-    const attackStat = move.damage_class === 'physical' ? 
-      attacker.stats.find(s => s.stat.name === 'attack').base_stat :
-      attacker.stats.find(s => s.stat.name === 'special-attack').base_stat;
-      
-    const defenseStat = move.damage_class === 'physical' ?
-      defender.stats.find(s => s.stat.name === 'defense').base_stat :
-      defender.stats.find(s => s.stat.name === 'special-defense').base_stat;
-    
-    // Check for STAB (Same Type Attack Bonus)
-    const stab = attacker.types.some(t => t.type.name === move.type) ? 1.5 : 1;
-    
-    // Check type effectiveness
-    let effectiveness = 1;
-    defender.types.forEach(t => {
-      if (typeEffectiveness[move.type] && typeEffectiveness[move.type][t.type.name]) {
-        effectiveness *= typeEffectiveness[move.type][t.type.name];
-      }
-    });
-    
-    // Random factor (0.85 to 1.0)
-    const randomFactor = 0.85 + Math.random() * 0.15;
-    
-    // Damage formula (simplified)
-    const damage = Math.floor(
-      (((2 * 50 / 5 + 2) * move.power * (attackStat / defenseStat)) / 50 + 2
-    ) * stab * effectiveness * randomFactor)
-    
-    return Math.max(1, Math.floor(damage));
-  };
-
-  // Player makes a move
   const playerMove = (move) => {
-    if (battleStatus !== 'battling' || currentTurn !== 'player') return;
-    
-    // Check if move hits (based on accuracy)
-    const doesHit = Math.random() * 100 <= move.accuracy;
-    
-    if (!doesHit) {
-      setBattleLog(prev => [...prev, `${selectedPokemon.name}'s ${move.name} missed!`]);
-      setCurrentTurn('opponent');
-      // Use a small timeout to allow the state to update before opponent moves
-      setTimeout(opponentMove, 1000);
+    // Add additional validation
+    if (battleStatus !== 'battling' || currentTurn !== 'player' || !selectedPokemon || !enemyPokemon) {
+      console.log('Invalid move attempt:', { battleStatus, currentTurn });
       return;
     }
-    
-    // Calculate damage
+  
     const damage = calculateDamage(selectedPokemon, enemyPokemon, move);
     const newEnemyHP = Math.max(0, enemyHP - damage);
-    
-    // Check effectiveness
+  
     let effectiveness = 1;
     enemyPokemon.types.forEach(t => {
-      if (typeEffectiveness[move.type] && typeEffectiveness[move.type][t.type.name]) {
+      if (typeEffectiveness[move.type]?.[t.type.name]) {
         effectiveness *= typeEffectiveness[move.type][t.type.name];
       }
     });
-    
+  
     let effectivenessMsg = '';
-    if (effectiveness > 1) {
-      effectivenessMsg = " It's super effective!";
-    } else if (effectiveness < 1 && effectiveness > 0) {
-      effectivenessMsg = " It's not very effective...";
-    } else if (effectiveness === 0) {
-      effectivenessMsg = " It has no effect!";
-    }
-    
-    setBattleLog(prev => [...prev, 
+    if (effectiveness > 1) effectivenessMsg = " It's super effective!";
+    else if (effectiveness < 1 && effectiveness > 0) effectivenessMsg = " It's not very effective...";
+    else if (effectiveness === 0) effectivenessMsg = " It has no effect!";
+  
+    const newLog = [
+      ...battleLog,
       `${selectedPokemon.name} used ${move.name}!${effectivenessMsg}`,
       `It dealt ${damage} damage to ${enemyPokemon.name}!`
-    ]);
-    
-    setEnemyHP(newEnemyHP);
-    
-    // Check if enemy fainted
-    if (newEnemyHP <= 0) {
-      setBattleLog(prev => [...prev, `${enemyPokemon.name} fainted!`, `${selectedPokemon.name} wins the battle!`]);
-      setBattleStatus('finished');
-      return;
-    }
-    
-    // Opponent's turn - use a small timeout to allow state updates
-    setCurrentTurn('opponent');
-    setTimeout(opponentMove, 1000);
-  };
+    ];
   
-  // Opponent AI makes a move
-  const opponentMove = useCallback(() => {
-    if (battleStatus !== 'battling' || currentTurn !== 'opponent') return;
-    
-    // Simple AI: choose a random move
-    const randomMove = enemyPokemon.attacks[Math.floor(Math.random() * enemyPokemon.attacks.length)];
-    
-    // Check if move hits (based on accuracy)
-    const doesHit = Math.random() * 100 <= randomMove.accuracy;
-    
-    if (!doesHit) {
-      setBattleLog(prev => [...prev, `${enemyPokemon.name}'s ${randomMove.name} missed!`]);
-      setCurrentTurn('player');
+    setBattleLog(newLog);
+    setEnemyHP(newEnemyHP);
+  
+    if (newEnemyHP <= 0) {
+      const victoryLog = [...newLog, `${enemyPokemon.name} fainted!`, `${selectedPokemon.name} wins the battle!`];
+      setBattleLog(victoryLog);
+      setBattleStatus('finished');
+      setCurrentTurn(null);
+      sendBattleState(victoryLog, playerHP, newEnemyHP, null, 'finished');
       return;
     }
-    
-    // Calculate damage
-    const damage = calculateDamage(enemyPokemon, selectedPokemon, randomMove);
+  
+    // Switch turns and notify opponent
+    setCurrentTurn('opponent');
+    socketRef.current.emit('move', {
+      room: battleId,
+      move: move,
+      enemyHP: newEnemyHP,
+      log: newLog
+    });
+    sendBattleState(newLog, playerHP, newEnemyHP, 'opponent');
+  };
+  const opponentMove = (move) => {
+    if (battleStatus !== 'battling' || currentTurn !== 'opponent') return;
+  
+    const damage = calculateDamage(enemyPokemon, selectedPokemon, move);
     const newPlayerHP = Math.max(0, playerHP - damage);
-    
-    // Check effectiveness
+  
     let effectiveness = 1;
     selectedPokemon.types.forEach(t => {
-      if (typeEffectiveness[randomMove.type] && typeEffectiveness[randomMove.type][t.type.name]) {
-        effectiveness *= typeEffectiveness[randomMove.type][t.type.name];
+      if (typeEffectiveness[move.type]?.[t.type.name]) {
+        effectiveness *= typeEffectiveness[move.type][t.type.name];
       }
     });
-    
+  
     let effectivenessMsg = '';
-    if (effectiveness > 1) {
-      effectivenessMsg = " It's super effective!";
-    } else if (effectiveness < 1 && effectiveness > 0) {
-      effectivenessMsg = " It's not very effective...";
-    } else if (effectiveness === 0) {
-      effectivenessMsg = " It has no effect!";
-    }
-    
-    setBattleLog(prev => [...prev, 
-      `${enemyPokemon.name} used ${randomMove.name}!${effectivenessMsg}`,
+    if (effectiveness > 1) effectivenessMsg = " It's super effective!";
+    else if (effectiveness < 1 && effectiveness > 0) effectivenessMsg = " It's not very effective...";
+    else if (effectiveness === 0) effectivenessMsg = " It has no effect!";
+  
+    const newLog = [
+      ...battleLog,
+      `${enemyPokemon.name} used ${move.name}!${effectivenessMsg}`,
       `It dealt ${damage} damage to ${selectedPokemon.name}!`
-    ]);
-    
+    ];
+  
+    setBattleLog(newLog);
     setPlayerHP(newPlayerHP);
-    
-    // Check if player fainted
+  
     if (newPlayerHP <= 0) {
-      setBattleLog(prev => [...prev, `${selectedPokemon.name} fainted!`, `${enemyPokemon.name} wins the battle!`]);
+      const defeatLog = [...newLog, `${selectedPokemon.name} fainted!`, `${enemyPokemon.name} wins the battle!`];
+      setBattleLog(defeatLog);
       setBattleStatus('finished');
+      setCurrentTurn(null);
+      sendBattleState(defeatLog, newPlayerHP, enemyHP, null, 'finished');
       return;
     }
-    
-    // Player's turn
+  
+    // Switch turns
     setCurrentTurn('player');
-  }, [battleStatus, currentTurn, enemyPokemon, playerHP, selectedPokemon]);
-
-  // Reset battle
-  const resetBattle = () => {
-    setSelectedPokemon(null);
-    setEnemyPokemon(null);
-    setBattleLog([]);
-    setBattleStatus('selecting');
-    setCurrentTurn(null);
+    sendBattleState(newLog, newPlayerHP, enemyHP, 'player');
   };
 
-  // Opponent card component
+  const calculateDamage = (attacker, defender, move) => {
+    const attackStat = attacker.stats.find(s => s.stat.name === 'attack').base_stat;
+    const defenseStat = defender.stats.find(s => s.stat.name === 'defense').base_stat;
+
+    const stab = attacker.types.some(t => t.type.name === move.type) ? 1.5 : 1;
+
+    let effectiveness = 1;
+    defender.types.forEach(t => {
+      if (typeEffectiveness[move.type]?.[t.type.name]) {
+        effectiveness *= typeEffectiveness[move.type][t.type.name];
+      }
+    });
+
+    const randomFactor = 0.85 + Math.random() * 0.15;
+
+    return Math.max(1, Math.floor(
+      (move.power * (attackStat / defenseStat) * stab * effectiveness * randomFactor)
+    ));
+  };
+
+  const sendBattleState = (log, playerHP, enemyHP, currentTurn, status = battleStatus) => {
+    socketRef.current.emit('battle_state', {
+      room: battleId,
+      state: {
+        log,
+        playerHP,
+        enemyHP,
+        currentTurn,
+        status
+      }
+    });
+  };
+
+  const syncBattleState = (state) => {
+    setBattleLog(state.log);
+    setPlayerHP(state.playerHP);
+    setEnemyHP(state.enemyHP);
+    setCurrentTurn(state.currentTurn);
+    setBattleStatus(state.status);
+  };
+
+  const getTypeColor = (type) => {
+    return typeColors[type?.toLowerCase()] || "#777";
+  };
+
+  const copyInvitationLink = () => {
+    navigator.clipboard.writeText(invitationLink);
+    alert('Link copied to clipboard!');
+  };
+
+  const resetBattle = () => {
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
+    navigate('/pokemon-battle');
+  };
+
+  if (loading) {
+    return (
+      <div className="p2p-loading">
+        <div className="pokeball-spinner">
+          <div className="pokeball-top"></div>
+          <div className="pokeball-bottom"></div>
+          <div className="pokeball-center"></div>
+        </div>
+        <p>Loading Pokémon...</p>
+      </div>
+    );
+  }
+
+
   const OpponentCard = ({ pokemon, onSelect }) => {
     const mainType = pokemon.types?.[0]?.type?.name || 'normal';
     const typeColor = getTypeColor(mainType);
-
+  
     return (
-      <div className="opponent-card" onClick={() => onSelect(pokemon)}>
-        <div className="battle-pokemon-image-container" style={{
-          backgroundColor: `${typeColor}30`,
-          backgroundImage: `radial-gradient(circle at center, ${typeColor}30 0%, transparent 70%)`,
-        }}>
+      <div
+        className="pokemon-card team-card"
+        style={{ "--type-color": typeColor }}
+    
+      >
+        <div className="battle-card-header">
+          <span
+            className="pokemon-classification"
+            data-classification={pokemon.classification?.type}
+          >
+            {pokemon.classification?.label}
+          </span>
+          <span className="battle-pokemon-hp">
+            {pokemon.stats?.[0]?.base_stat || '??'} HP
+          </span>
+        </div>
+  
+        <div
+          className="battle-pokemon-image-container"
+          style={{
+            backgroundColor: `${typeColor}30`,
+            backgroundImage: `radial-gradient(circle at center, ${typeColor}30 0%, transparent 70%)`,
+          }}
+        >
           {pokemon.loaded ? (
             <img
               src={pokemon.sprites?.other?.["official-artwork"]?.front_default}
@@ -515,193 +755,157 @@ const PokemonSkillBattle = () => {
               className="battle-pokemon-image"
               onError={(e) => {
                 e.target.onerror = null;
-                e.target.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/0.png';
+                e.target.src =
+                  'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/0.png';
               }}
             />
           ) : (
             <div className="image-placeholder">Loading...</div>
           )}
         </div>
-        
-        <div className="battle-pokemon-name">
+  
+        <p className="battle-pokemon-name">
           {pokemon.name.charAt(0).toUpperCase() + pokemon.name.slice(1)}
-        </div>
-        
-        <div className="battle-pokemon-stats">
-          <div className="stat-item">
-            <span className="stat-name">HP</span>
-            <span className="stat-value">
-              {pokemon.stats?.find(s => s.stat.name === 'hp')?.base_stat || '?'}
-            </span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-name">ATK</span>
-            <span className="stat-value">
-              {pokemon.stats?.find(s => s.stat.name === 'attack')?.base_stat || '?'}
-            </span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-name">SPD</span>
-            <span className="stat-value">
-              {pokemon.stats?.find(s => s.stat.name === 'speed')?.base_stat || '?'}
-            </span>
-          </div>
-        </div>
-        
-        <button 
+        </p>
+  
+        <button
           className="add-button-in-team"
           style={{ backgroundColor: typeColor }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect(pokemon);
-          }}
+          onClick={() => selectPokemon(pokemon)}
         >
-          Select Opponent
+          Select Pokemon
         </button>
+  
+        <div className="pokemon-types">
+          <h4>
+            <img src={Pokeball} alt="Pokeball" className="pokeball-icon2" />
+            Elements:
+          </h4>
+          <div className="type-tags">
+            {pokemon.types?.length > 0 ? (
+              pokemon.types.map((type, index) => (
+                <span
+                  key={index}
+                  className="type-tag"
+                  style={{ backgroundColor: getTypeColor(type.type.name) }}
+                >
+                  {type.type.name}
+                </span>
+              ))
+            ) : (
+              <span>Loading types...</span>
+            )}
+          </div>
+        </div>
+  
+        <div className="pokemon-attacks">
+          <h4>
+            <GiBroadsword className="icon sword-icon" /> Moves:
+          </h4>
+          <ul>
+            {pokemon.attacks?.length > 0 ? (
+              pokemon.attacks.map((attack, index) => (
+                <li key={index}>
+                  <span
+                    className="attack-dot"
+                    style={{ backgroundColor: getTypeColor(attack.type) }}
+                  ></span>
+                  {attack.name}
+                </li>
+              ))
+            ) : (
+              <li>Loading moves...</li>
+            )}
+          </ul>
+        </div>
       </div>
     );
   };
 
-  // Loading state
-  if (loading) {
+  if (connectionStatus === 'error') {
     return (
-      <div className="pokedex-loading">
-        <div className="pokeball1-loading">
-          <div className="pokeball1-top"></div>
-          <div className="pokeball1-bottom"></div>
-          <div className="pokeball1-middle"></div>
-          <div className="pokeball1-center"></div>
-          <div className="pokeball1-center-inner"></div>
-        </div>
-        <p className="loading-text">Loading Pokémon</p>
+      <div className="p2p-error">
+        <h2>Connection Error</h2>
+        <p>Failed to establish connection with opponent</p>
+        <button onClick={resetBattle} className="p2p-button">
+          Go Back
+        </button>
       </div>
     );
   }
 
-  // Battle screen
-  if (selectedPokemon && enemyPokemon && battleStatus !== 'selecting') {
-    const playerMaxHP = selectedPokemon.stats.find(s => s.stat.name === 'hp').base_stat;
-    const enemyMaxHP = enemyPokemon.stats.find(s => s.stat.name === 'hp').base_stat;
-    
+  if (isHost && waitingForOpponent) {
     return (
       <>
         <Navbar />
-        <div className="battle-container">
-          <div className="battle-header">
-            <button className="back-button" onClick={resetBattle}>
-              <FaArrowLeft /> End Battle
+        <div className="p2p-waiting">
+          <div className="p2p-waiting-header">
+            <button onClick={resetBattle} className="p2p-back-button">
+              <FaArrowLeft /> Cancel
             </button>
-            <h1>Pokémon Skills Battle</h1>
+            <h2>Waiting for Opponent</h2>
           </div>
           
-          <div className="battle-field">
-            {/* Enemy Pokémon */}
-            <div className={`battle-pokemon enemy ${currentTurn === 'opponent' ? 'active' : ''}`}>
-              <div className="pokemon-info">
-                <h2>{enemyPokemon.name.charAt(0).toUpperCase() + enemyPokemon.name.slice(1)}</h2>
-                <div className="hp-bar-container">
-                  <div className="hp-bar" style={{ 
-                    width: `${(enemyHP / enemyMaxHP) * 100}%`,
-                    backgroundColor: enemyHP/enemyMaxHP < 0.2 ? '#ff0000' : enemyHP/enemyMaxHP < 0.5 ? '#ffa500' : '#4CAF50'
-                  }}></div>
-                </div>
-                <div className="hp-text">
-                  HP: {enemyHP} / {enemyMaxHP}
-                </div>
-              </div>
-                <div className="pokemon-image-container" style={{
-                    backgroundColor: `${getTypeColor(enemyPokemon.types[0].type.name)}30`,
-                    backgroundImage: `radial-gradient(circle at center, ${getTypeColor(enemyPokemon.types[0].type.name)}30 0%, transparent 70%)`
-                  }}>
-                <img
-                  src={enemyPokemon.sprites.other["official-artwork"].front_default}
-                  alt={enemyPokemon.name}
-                  className="pokemon-image"
-                />
-              </div>
+          <div className="p2p-waiting-content">
+            <div className="p2p-spinner"></div>
+            <p>Share this invitation with your opponent</p>
+            
+            <button 
+              onClick={() => setShowInvitationModal(true)}
+              className="p2p-button"
+            >
+              <FaQrcode /> Show Invitation
+            </button>
+            
+            <div className={`p2p-status ${connectionStatus}`}>
+              Status: {connectionStatus === 'waiting' ? 'Waiting for opponent...' : 'Connected!'}
             </div>
-            
-            {/* Battle log */}
-            <div className="battle-log">
-              {battleLog.map((log, index) => (
-                <p key={index}>{log}</p>
-              ))}
-            </div>
-            
-            {/* Player Pokémon */}
-            <div className={`battle-pokemon player ${currentTurn === 'player' ? 'active' : ''}`}>
-              <div className="pokemon-image-container" style={{
-                backgroundColor: `${getTypeColor(selectedPokemon.types[0].type.name)}30`,
-                backgroundImage: `radial-gradient(circle at center, ${getTypeColor(selectedPokemon.types[0].type.name)}30 0%, transparent 70%)`
-              }}>
-                <img
-                  src={selectedPokemon.sprites.other["official-artwork"].front_default}
-                  alt={selectedPokemon.name}
-                  className="pokemon-image"
-                />
-              </div>
-              <div className="pokemon-info">
-                <h2>{selectedPokemon.name.charAt(0).toUpperCase() + selectedPokemon.name.slice(1)}</h2>
-                <div className="hp-bar-container">
-                  <div className="hp-bar" style={{ 
-                    width: `${(playerHP / playerMaxHP) * 100}%`,
-                    backgroundColor: playerHP/playerMaxHP < 0.2 ? '#ff0000' : playerHP/playerMaxHP < 0.5 ? '#ffa500' : '#4CAF50'
-                  }}></div>
+          </div>
+          
+          {showInvitationModal && (
+            <div className="p2p-modal">
+              <div className="p2p-modal-content">
+                <h3>Invite Your Opponent</h3>
+                <div className="p2p-qr-code">
+                  <QRCodeSVG value={invitationLink} size={200} />
                 </div>
-                <div className="hp-text">
-                  HP: {playerHP} / {playerMaxHP}
+                <div className="p2p-link-container">
+                  <input 
+                    type="text" 
+                    value={invitationLink} 
+                    readOnly 
+                    className="p2p-link-input"
+                  />
+                  <button onClick={copyInvitationLink} className="p2p-copy-button">
+                    <FaCopy /> Copy
+                  </button>
                 </div>
-              </div>
-            </div>
-            
-            {/* Move selection (only visible during player's turn) */}
-            {currentTurn === 'player' && battleStatus === 'battling' && (
-              <div className="move-selection">
-                <h3>Choose a move:</h3>
-                <div className="move-buttons">
-                  {selectedPokemon.attacks.map((move, index) => (
-                    <button
-                      key={index}
-                      className="move-button"
-                      style={{ backgroundColor: getTypeColor(move.type) }}
-                      onClick={() => playerMove(move)}
-                    >
-                      <span className="move-name">{move.name}</span>
-                      <span className="move-details">
-                        <GiSwordWound /> {move.power} | <FaBolt /> {move.accuracy}%
-                      </span>
-                      <span className="move-type" style={{ backgroundColor: getTypeColor(move.type) }}>
-                        {move.type}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* Battle result */}
-            {battleStatus === 'finished' && (
-              <div className="battle-result">
                 <button 
-                  className="new-battle-btn"
-                  onClick={resetBattle}
+                  onClick={() => setShowInvitationModal(false)}
+                  className="p2p-button"
                 >
-                  Start New Battle
+                  Close
                 </button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </>
     );
   }
 
-  // Opponent selection screen
-  if (showOpponentSelector) {
-    return (
-      <>
-        <Navbar />
-        <div className="battle-pokedex-container">
+
+if (!selectedPokemon && battleStatus !== 'finished') {
+
+
+
+  
+  return (
+
+    <>
+      <Navbar />
+
+      <div className="battle-pokedex-container">
           <div className="battle-pokedex-header">
             <button 
               className="back-button"
@@ -714,7 +918,7 @@ const PokemonSkillBattle = () => {
             >
               <FaArrowLeft /> Back
             </button>
-            <h1>Select Opponent</h1>
+            <h1>Select Pokemons</h1>
           </div>
 
           <div className="controls-container">
@@ -746,6 +950,8 @@ const PokemonSkillBattle = () => {
             {getPaginatedOpponents().map((pokemon) => (
               <OpponentCard 
                 key={pokemon.id}
+                
+                
                 pokemon={pokemon}
                 onSelect={handleOpponentSelection}
               />
@@ -795,120 +1001,171 @@ const PokemonSkillBattle = () => {
             Page {currentPage} of {totalPages} | Showing {getPaginatedOpponents().length} of {filteredOpponents.length} Pokémon
           </div>
         </div>
-      </>
-    );
-  }
+  
+    </>
+  );
+}
 
-  // Team selection screen
   return (
     <>
       <Navbar />
-      <div className="battle-pokedex-container">
+      
+      <div className="pkmn-battle-container">
         <div className="battle-pokedex-header">
-          <h1>Pokémon  Skill Battle</h1>
-          <p className="battle-team-subtitle">Select a Pokémon to start battle</p>
+          <button onClick={resetBattle} className="back-button">
+            <FaArrowLeft /> End Battle
+          </button>
+          <h1>Pokémon P2P-Battle</h1>
         </div>
-
-        <div className="battle-container">
-          {team.length > 0 ? (
-            <div className="battle-grid">
-              {team.map((pokemon) => (
-                <div
-                  key={pokemon.id}
-                  className="battle-pokemon-card team-card"
-                  style={{"--type-color": getTypeColor(pokemon.types[0].type.name)}}
-                  onClick={() => startBattle(pokemon)}
-                >
-                  <div className="battle-card-header">
-                    <span className="battle-pokemon-hp">
-                      {pokemon.stats?.[0]?.base_stat || '??'} HP
-                    </span>
-                  </div>
-                  
-                  <div
-                    className="battle-pokemon-image-container"
+        
+        <div className="pkmn-battle-field-container">
+          <div className="pkmn-battle-field">
+            {/* Opponent Pokémon */}
+            <div className={`pkmn-battle-pokemon pkmn-opponent ${currentTurn === 'opponent' ? 'p2p-active-turn' : ''}`}>
+              <div className="pkmn-pokemon-info">
+                <h3>{enemyPokemon?.name?.charAt(0).toUpperCase() + enemyPokemon?.name?.slice(1)}</h3>
+                <div className="pkmn-hp-bar-container">
+                  <div 
+                    className="pkmn-hp-bar"
                     style={{
-                      backgroundColor: `${getTypeColor(pokemon.types[0].type.name)}30`,
-                      backgroundImage: `radial-gradient(circle at center, ${getTypeColor(pokemon.types[0].type.name)}30 0%, transparent 70%)`,
+                      width: `${(enemyHP / (enemyPokemon?.stats?.find(s => s.stat.name === 'hp')?.base_stat || 100)) * 100}%`,
+                      backgroundColor: enemyHP / (enemyPokemon?.stats?.find(s => s.stat.name === 'hp')?.base_stat || 100) < 0.2 ? '#ff0000' :
+                                      enemyHP / (enemyPokemon?.stats?.find(s => s.stat.name === 'hp')?.base_stat || 100) < 0.5 ? '#ffa500' : '#4CAF50'
                     }}
-                  >
-
-<img
-                      src={pokemon.sprites.other["official-artwork"].front_default}
-                      alt={pokemon.name}
-                      className="battle-pokemon-image"
-                      loading="lazy"
-                    />
-                  </div>
-                  
-                  <div className="battle-card-body">
-                    <p className="battle-pokemon-name">
-                      {pokemon.name.charAt(0).toUpperCase() + pokemon.name.slice(1)}
-                    </p>
-
-                    <div className="pokemon-add-to-team">
-                      <button 
-                        className="add-button-in-team"
-                        onClick={() => startBattle(pokemon)}
-                      >
-                        Choose for Battle
-                      </button>
-                    </div>
-
-                    <div className="battle-pokemon-moves">
-                      <h4>
-                        <GiBroadsword className="icon sword-icon" /> Moves:
-                      </h4>
-                      <ul>
-                        {pokemon.attacks.map((move, index) => (
-                          <li key={index}>
-                            <span
-                              className="move-dot"
-                              style={{ backgroundColor: getTypeColor(move.type) }}
-                            ></span>
-                            {move.name} ({move.power} power)
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
+                  ></div>
                 </div>
-              ))}
+                <div className="pkmn-hp-text">
+                  HP: {enemyHP} / {enemyPokemon?.stats?.find(s => s.stat.name === 'hp')?.base_stat || 100}
+                </div>
+              </div>
+              
+              <div 
+                className="pkmn-pokemon-image-container"
+                style={{
+                  backgroundColor: `${getTypeColor(enemyPokemon?.types?.[0]?.type?.name)}30`,
+                  backgroundImage: `radial-gradient(circle at center, ${getTypeColor(enemyPokemon?.types?.[0]?.type?.name)}30 0%, transparent 70%)`
+                }}
+              >
+                <img
+                  src={enemyPokemon?.sprites?.other?.["official-artwork"]?.front_default}
+                  alt={enemyPokemon?.name}
+                  className="pkmn-pokemon-image"
+                  onError={(e) => {
+                    e.target.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/0.png';
+                  }}
+                />
+              </div>
             </div>
-          ) : (
-            <div className="no-battle">
-              <p>Your battle team is empty!</p>
+            
+            {/* VS Circle */}
+            <div className="pkmn-vs-container">
+              <div className="pkmn-vs-circle">
+                <span>VS</span>
+              </div>
+            </div>
+            
+            {/* Player Pokémon */}
+            <div className={`pkmn-battle-pokemon pkmn-player ${currentTurn === 'player' ? 'pkmn-active-turn' : ''}`}>
+              <div 
+                className="pkmn-pokemon-image-container"
+                style={{
+                  backgroundColor: `${getTypeColor(selectedPokemon?.types?.[0]?.type?.name)}30`,
+                  backgroundImage: `radial-gradient(circle at center, ${getTypeColor(selectedPokemon?.types?.[0]?.type?.name)}30 0%, transparent 70%)`
+                }}
+              >
+                <img
+                  src={selectedPokemon?.sprites?.other?.["official-artwork"]?.front_default}
+                  alt={selectedPokemon?.name}
+                  className="pkmn-pokemon-image"
+                />
+              </div>
+              
+              <div className="pkmn-pokemon-info">
+                <h3>{selectedPokemon?.name?.charAt(0).toUpperCase() + selectedPokemon?.name?.slice(1)}</h3>
+                <div className="pkmn-hp-bar-container">
+                  <div 
+                    className="pkmn-hp-bar"
+                    style={{
+                      width: `${(playerHP / (selectedPokemon?.stats?.find(s => s.stat.name === 'hp')?.base_stat || 100)) * 100}%`,
+                      backgroundColor: playerHP / (selectedPokemon?.stats?.find(s => s.stat.name === 'hp')?.base_stat || 100) < 0.2 ? '#ff0000' :
+                                      playerHP / (selectedPokemon?.stats?.find(s => s.stat.name === 'hp')?.base_stat || 100) < 0.5 ? '#ffa500' : '#4CAF50'
+                    }}
+                  ></div>
+                </div>
+                <div className="pkmn-hp-text">
+                  HP: {playerHP} / {selectedPokemon?.stats?.find(s => s.stat.name === 'hp')?.base_stat || 100}
+                </div>
+              </div>
+            </div>
+            
+            {/* Move Selection */}
+            {currentTurn === 'player' && battleStatus === 'battling' && (
+              <div className="pkmn-move-selection">
+                <h4>Choose a Move:</h4>
+                <div className="pkmn-move-buttons">
+                  {selectedPokemon?.moves?.map((move, index) => (
+                    <button
+                      key={index}
+                      className="pkmn-move-button"
+                      style={{ backgroundColor: getTypeColor(move.type) }}
+                      onClick={() => playerMove(move)}
+                      disabled={currentTurn !== 'player'}
+                    >
+                      <span className="pkmn-move-name">
+                        {move.name.charAt(0).toUpperCase() + move.name.slice(1)}
+                      </span>
+                      <div className="pkmn-move-stats">
+                        <span className="pkmn-move-power">Power: {move.power}</span>
+                        <span className="pkmn-move-accuracy">Acc: {move.accuracy || '--'}</span>
+                      </div>
+                      <span 
+                        className="pkmn-move-type"
+                        style={{ backgroundColor: getTypeColor(move.type) }}
+                      >
+                        {move.type}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Battle Result */}
+            {battleStatus === 'finished' && (
+              <div className="pkmn-battle-result">
+                <button 
+                  onClick={resetBattle}
+                  className="p2p-button"
+                >
+                  New Battle
+                </button>
+              </div>
+            )}
+          </div>
+  
+          {battleStatus === 'finished' && (
+            <div className="pkmn-battle-result">
+              <button 
+                className="pkmn-new-battle-btn"
+                onClick={resetBattle}
+              >
+                Start New Battle
+              </button>
             </div>
           )}
+          
+          <div className="pkmn-battle-log">
+            <h3>Battle Log</h3>
+            <div className="pkmn-battle-log-content">
+              {battleLog.map((log, index) => (
+                <p key={index}>{log}</p>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </>
   );
 };
 
-const getTypeColor = (type) => {
-  const typeColors = {
-    normal: "#A8A878",
-    fire: "#F08030",
-    water: "#6890F0",
-    electric: "#F8D030",
-    grass: "#78C850",
-    ice: "#98D8D8",
-    fighting: "#C03028",
-    poison: "#A040A0",
-    ground: "#E0C068",
-    flying: "#A890F0",
-    psychic: "#F85888",
-    bug: "#A8B820",
-    rock: "#B8A038",
-    ghost: "#705898",
-    dragon: "#7038F8",
-    dark: "#705848",
-    steel: "#B8B8D0",
-    fairy: "#EE99AC",
-  };
-  return typeColors[type?.toLowerCase()] || "#777";
-};
-
-export default PokemonSkillBattle;
-              
+export default PokemonP2PBattle;

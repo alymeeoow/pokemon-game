@@ -11,7 +11,7 @@ const MyTeam = () => {
   const [loading, setLoading] = useState(true);
   const [selectedPokemon, setSelectedPokemon] = useState(null);
   const [error, setError] = useState(null);
-  const [moveTypes, setMoveTypes] = useState({}); // Store move types
+  const [moveTypes, setMoveTypes] = useState({}); 
   
 
 
@@ -22,7 +22,7 @@ const MyTeam = () => {
   });
   const navigate = useNavigate();
   const handleRedirect = () => {
-    navigate('/pokedex'); // Redirect to /pokedex when the icon is clicked
+    navigate('/pokedex'); 
   };
 
   const ConfirmModal = () => {
@@ -56,7 +56,7 @@ const MyTeam = () => {
     );
   };
 
-  // Fetch team from json-server
+
   useEffect(() => {
     const fetchTeam = async () => {
       try {
@@ -71,13 +71,13 @@ const MyTeam = () => {
         setTeam(Array.isArray(data) ? data : []);
         setError(null);
         
-        // Preload move types
+
         const typesMap = {};
         for (const pokemon of data) {
           if (pokemon.moves) {
             for (const move of pokemon.moves) {
               if (!typesMap[move]) {
-                // Default to pokemon's first type if move type isn't specified
+             
                 typesMap[move] = pokemon.elements?.[0] || 'normal';
               }
             }
@@ -98,7 +98,7 @@ const MyTeam = () => {
 
   const removeFromTeam = async (serverId) => {
     try {
-      // Optimistic update - remove from UI immediately
+      
       setTeam(prev => prev.filter(p => p.id !== serverId));
   
       const response = await fetch(`http://localhost:3000/myteams/${serverId}`, {
@@ -114,7 +114,7 @@ const MyTeam = () => {
   
     } catch (err) {
       console.error("Delete error:", err);
-      // Revert by fetching fresh data
+ 
       const freshData = await fetch('http://localhost:3000/myteams').then(res => res.json());
       setTeam(freshData);
       setError(`Failed to remove Pokémon: ${err.message}`);

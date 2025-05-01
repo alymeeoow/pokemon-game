@@ -3,7 +3,7 @@ import { FaSearch, FaTimes, FaHeartBroken, FaShieldAlt } from "react-icons/fa";
 import { GiBroadsword } from "react-icons/gi";
 import Pokeball from "../assets/images/pokeballs.svg";
 import "../assets/css/page/pokedex.css";
-import Navbar from "./navbar";
+// import Navbar from "./navbar";
 
 const Pokedex = () => {
 
@@ -14,17 +14,17 @@ const Pokedex = () => {
   const [selectedType, setSelectedType] = useState("all");
   const [types, setTypes] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [typeFilterLoading, setTypeFilterLoading] = useState(false);
+
   const [totalPages, setTotalPages] = useState(1);
   const [selectedPokemon, setSelectedPokemon] = useState(null);
   const pokemonPerPage = 30;
   
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-const [successMessage, setSuccessMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
 
   const [team, setTeam] = useState([]);
-  const [teamError, setTeamError] = useState(null);
+  
 
   const enhancedCache = React.useRef(new Map());
 
@@ -453,7 +453,7 @@ useEffect(() => {
 
   return (
     <>
-      <Navbar/>
+      {/* <Navbar/> */}
 
 
 
@@ -551,7 +551,7 @@ useEffect(() => {
                   <div className="card-body">
                  
                   <div className="pokemon-add-to-team">
-                  <button
+                  {/* <button
   type="button"
   className={isInTeam ? 'add-button-in-team' : 'add-button'}
   onClick={(e) => addToTeam(pokemon, e)}
@@ -564,7 +564,7 @@ useEffect(() => {
     : isInTeam
     ? 'IN TEAM'
     : 'ADD TO TEAM'}
-</button>
+</button> */}
 
 
 

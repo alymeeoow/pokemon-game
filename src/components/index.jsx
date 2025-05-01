@@ -34,11 +34,11 @@ const LandingPage = () => {
   </Button>
 </Link>
 
-          <Link to="/myteam">
+          {/* <Link to="/myteam">
             <Button size="lg" variant="outline" className="secondary-button">
               My Team
             </Button>
-          </Link>
+          </Link> */}
         </div>
       </motion.div>
     </div>
